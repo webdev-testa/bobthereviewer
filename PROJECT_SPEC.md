@@ -50,16 +50,17 @@ Before executing tests and probes, the tool classifies the diff into one of thes
 
 | Category | Description |
 |---|---|
-| `docs-only` | Every changed file is documentation (`.md`, `.rst`, `.txt`) or a comment-only Python change; no imports or logic changed |
+| `docs-only` | Every changed file is a documentation file (`.md`, `.rst`, `.txt`) only — no Python files changed at all |
 | `tests-only` | Every changed file is a test file; no production code changed |
 | `config-deps` | Changed files include package manifests, lock files, CI configuration, or environment files |
-| `no-semantic-change` | Changed lines are whitespace, formatting, or type annotations only |
-| `code` | Any other change, including newly added probe files or unknown file types |
+| `no-semantic-change` | Changed Python files parse successfully and their ASTs are structurally identical (ignoring source-location attributes); no non-Python production files changed |
+| `code` | Any other change, including any Python file whose AST differs, newly added probe files, unknown file types, or files that fail to parse |
 
 **Execution rules:**
 - `docs-only`: tests and probes are **skipped by default**; report explicitly states what was skipped and why; `--full` forces execution
-- `tests-only`, `config-deps`, `no-semantic-change`, `code`, unknown file types: always take the normal execution path
-- A diff that contains both docs and code changes is classified as `code`
+- `tests-only`, `config-deps`, `no-semantic-change`, `code`, unknown file types, parse failures: always take the normal execution path
+- A diff that contains any Python file (regardless of whether it is comments, formatting, or logic) is never `docs-only`
+- An unknown file type or a parse failure must not become grounds for skipping — they classify as `code`
 - Newly added probes are never grounds for skipping — they always run
 
 The report must say what was skipped and why. A skipped execution must never appear as "passed."

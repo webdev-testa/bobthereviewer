@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bobthereviewer"
+version = "0.1.0.dev0"
+description = "Find what a code change actually affects and whether the difference was intentional"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "jsonschema>=4.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+]
+
+[project.scripts]
+bobreviewer = "bobthereviewer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"bobthereviewer" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

@@ -1,0 +1,12 @@
+LICENSE
+pyproject.toml
+src/bobthereviewer/__init__.py
+src/bobthereviewer/cli.py
+src/bobthereviewer/contracts.py
+src/bobthereviewer.egg-info/PKG-INFO
+src/bobthereviewer.egg-info/SOURCES.txt
+src/bobthereviewer.egg-info/dependency_links.txt
+src/bobthereviewer.egg-info/entry_points.txt
+src/bobthereviewer.egg-info/requires.txt
+src/bobthereviewer.egg-info/top_level.txt
+tests/test_contracts.py

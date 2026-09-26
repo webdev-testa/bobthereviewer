@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "run_id": "00000000-0000-0000-0000-000000000003",
+  "repository": "https://github.com/webdev-testa/bobthereviewer.git",
+  "file_path": "demo/sample_project/pricing.py",
+  "symbol": "demo.pricing.calculate_price",
+  "base_commit": "cccccccccccccccccccccccccccccccccccccccc",
+  "head_commit": "dddddddddddddddddddddddddddddddddddddddd",
+  "probe_file": ".bobreviewer/probes/pricing_basic.json",
+  "probe_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case_id": "basic",
+  "observed_before": 100.0,
+  "observed_after": 107.5,
+  "verdict": "intended",
+  "rationale": "Tax rate updated from 5% to 7.5% per new policy effective 2026-Q1.",
+  "status": "proposed",
+  "timestamp": "2026-01-01T01:00:00Z"
+}

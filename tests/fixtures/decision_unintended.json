@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "run_id": "00000000-0000-0000-0000-000000000002",
+  "repository": "https://github.com/webdev-testa/bobthereviewer.git",
+  "file_path": "demo/sample_project/invoice.py",
+  "symbol": "demo.invoice.calculate_invoice",
+  "base_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "probe_file": ".bobreviewer/probes/invoice_basic.json",
+  "probe_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case_id": "basic",
+  "observed_before": 100.0,
+  "observed_after": 99.99,
+  "verdict": "unintended",
+  "rationale": "",
+  "status": "proposed",
+  "timestamp": "2026-01-01T00:01:00Z"
+}
