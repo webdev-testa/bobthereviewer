@@ -371,6 +371,7 @@
         "head_commit": { "type": "string" },
         "probe_file": { "type": "string" },
         "probe_hash": { "type": "string" },
+        "case_id": { "type": "string" },
         "observed_before": { "description": "Any JSON value" },
         "observed_after": { "description": "Any JSON value" },
         "verdict": {

@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bobthereviewer"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Find what a code change actually affects and whether the difference was intentional"
-requires-python = ">=3.11"
 license = { text = "MIT" }
+requires-python = ">=3.11"
 dependencies = [
     "jsonschema>=4.21",
 ]
@@ -16,13 +16,15 @@ dependencies = [
 dev = [
     "pytest>=8",
     "pytest-cov",
+    "jsonschema>=4.21",
 ]
 
 [project.scripts]
 bobreviewer = "bobthereviewer.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["bobthereviewer*", "app*"]
 
 [tool.setuptools.package-data]
 "bobthereviewer" = ["py.typed"]
@@ -30,3 +32,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

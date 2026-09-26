@@ -318,13 +318,95 @@ def test_cli_run_uses_config_defaults(tmp_path):
 # CLI — decide and ui pending integration
 # ---------------------------------------------------------------------------
 
-def test_cli_decide_pending_returns_1(tmp_path, capsys):
-    """decide command returns 1 and prints a clear pending message when Lane 4 not available."""
-    code = main(["decide", "--run-id", "abc", "--symbol", "x.y",
-                 "--case-id", "c1", "--verdict", "unresolved", "--rationale", "r"])
+def test_cli_decide_missing_evidence_returns_1(tmp_path, capsys):
+    """decide command returns 1 when evidence bundle is not found."""
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    code = main([
+        "decide",
+        "--run-id", "00000000-0000-0000-0000-000000000001",
+        "--symbol", "x.y",
+        "--case-id", "c1",
+        "--verdict", "unresolved",
+        "--rationale", "Need more info",
+        "--repo-dir", str(repo),
+    ])
     assert code == 1
     err = capsys.readouterr().err
-    assert "pending" in err.lower() or "lane 4" in err.lower() or "decide_cmd" in err.lower()
+    assert "not found" in err.lower() or "could not find" in err.lower()
+
+
+def test_cli_decide_success_writes_decision_and_prints_git_command(tmp_path, capsys):
+    """decide command writes a valid decision file and prints the suggested git command."""
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    run_id = "00000000-0000-0000-0000-000000000001"
+    evidence_dir = repo / ".bobreviewer" / "runs" / run_id
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    evidence_file = evidence_dir / "evidence.json"
+
+    evidence_data = {
+        "schema_version": "1",
+        "run_id": run_id,
+        "generated_at": "2026-01-01T00:00:00Z",
+        "repository": "https://github.com/example/bobthereviewer",
+        "base_ref": "main",
+        "head_ref": "feature",
+        "base_commit": "a" * 40,
+        "head_commit": "b" * 40,
+        "changed_functions": [
+            {
+                "symbol": "pricing.discount.apply_discount",
+                "file_path": "pricing/discount.py",
+                "callers": [],
+                "unknown_references": [],
+            }
+        ],
+        "probe_results": [
+            {
+                "probe_file": "probes/discount.json",
+                "probe_hash": "c" * 64,
+                "target": "pricing.discount.apply_discount",
+                "cases": [
+                    {
+                        "id": "case-1",
+                        "args": [100.0, 0.1],
+                        "kwargs": {},
+                        "base_output": 90.0,
+                        "head_output": 89.99,
+                        "status": "differ",
+                    }
+                ],
+            }
+        ],
+    }
+    evidence_file.write_text(json.dumps(evidence_data), encoding="utf-8")
+
+    code = main([
+        "decide",
+        "--run-id", run_id,
+        "--symbol", "pricing.discount.apply_discount",
+        "--case-id", "case-1",
+        "--verdict", "intended",
+        "--rationale", "Updated rounding precision per new policy guidelines.",
+        "--repo-dir", str(repo),
+    ])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "decision written to:" in out.lower()
+    assert "git add" in out
+    assert "git commit" in out
+
+    # Verify decision JSON was written
+    decisions_dir = repo / ".bobreviewer" / "decisions"
+    assert decisions_dir.exists()
+    decision_files = list(decisions_dir.glob("*.json"))
+    assert len(decision_files) == 1
+    written_data = json.loads(decision_files[0].read_text(encoding="utf-8"))
+    assert written_data["case_id"] == "case-1"
+    assert written_data["verdict"] == "intended"
+    assert written_data["status"] == "proposed"
+
 
 
 def test_cli_ui_pending_returns_1(tmp_path, capsys):

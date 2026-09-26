@@ -133,7 +133,7 @@ It must raise a structured error (compatible with `ContractError`) when:
 
 Lane 1's `bobreviewer decide` command calls this function. Lane 2's `POST /decide` endpoint also calls it (via import, not HTTP). The function is implemented by Lane 4.
 
-**Status:** Interface defined; implementation pending Lane 4. Lane 1 CLI will import it when available.
+**Status:** ✅ Complete and integrated. Implemented by Lane 4 in `app/decisions.py` and wired via `bobthereviewer.decide_cmd`. Tested with 168 passing tests.
 
 ---
 
@@ -180,7 +180,7 @@ A newly written probe must be committed into the selected head ref before it can
 |---|---|---|
 | `WorktreeContext` dataclass confirmed by Lane 2 | Milestone 1 | ⏳ Pending Lane 2 review |
 | `ExecutionResult` dataclass confirmed by Lane 2 | Milestone 1 | ⏳ Pending Lane 2 review |
-| `validate_and_build_decision` signature confirmed by Lane 4 | Milestone 2 | ⏳ Pending Lane 4 review |
+| `validate_and_build_decision` signature confirmed by Lane 4 | Milestone 2 | ✅ Implemented and wired |
 | Frontend asset path in package confirmed by Lane 3 | Milestone 3 | ⏳ Pending Lane 3 review |
 | Progress step enum changes (if any) | All | Any change requires Lane 1 approval |
 
@@ -201,5 +201,6 @@ All five Lane 1 slices are complete. The first integration milestone is:
 **Pending integrations (Lane 1 wiring is ready; awaiting the other lanes):**
 - `bobreviewer run` full execution: awaiting `bobthereviewer.executor` (Lane 2)
 - `bobreviewer ui`: awaiting `bobthereviewer.server` (Lane 2)
-- `bobreviewer decide`: awaiting `bobthereviewer.decide_cmd` (Lane 4)
+- `bobreviewer decide`: ✅ Wired to `bobthereviewer.decide_cmd` (Lane 4)
 - Frontend assets: awaiting Lane 3's built bundle committed to `src/bobthereviewer/frontend/`
+

@@ -155,8 +155,34 @@ def _assemble_evidence(
         ],
         "test_results": exec_result.test_results,
         "probe_results": exec_result.probe_results,
-        "decisions": [],  # loaded from .bobreviewer/decisions/ by the CLI
+        "decisions": _load_approved_decisions(ctx, analysis_result),
     }
+
+
+def _load_approved_decisions(ctx: WorktreeContext, analysis_result) -> list[dict]:
+    """Load matching approved decisions from .bobreviewer/decisions/."""
+    decisions: list[dict] = []
+    try:
+        from bobthereviewer.decisions import lookup
+        decisions_dir = ctx.repo_root / ".bobreviewer" / "decisions"
+        if decisions_dir.exists():
+            seen: set[tuple] = set()
+            for cf in analysis_result.changed_functions:
+                matches = lookup(
+                    repo=ctx.repository_url,
+                    file_path=cf.file_path,
+                    symbol=cf.symbol,
+                    default_branch=ctx.base_ref,
+                    decisions_dir=decisions_dir,
+                )
+                for d in matches:
+                    key = (d.get("symbol"), d.get("head_commit"), d.get("case_id"))
+                    if key not in seen:
+                        seen.add(key)
+                        decisions.append(d)
+    except Exception:
+        pass
+    return decisions
 
 
 # ---------------------------------------------------------------------------
