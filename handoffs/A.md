@@ -11,10 +11,12 @@ This file is the live interface document for Lane 1. It records what each lane n
 | Slice | State | Check result |
 |---|---|---|
 | 1 — Contracts and fixtures | ✅ Complete | 35/35 tests pass |
-| 2 — Revision snapshots | 🔲 Not started | — |
-| 3 — Impact analysis + analyze command | 🔲 Not started | — |
-| 4 — Triage + pipeline | 🔲 Not started | — |
-| 5 — Setup + command integration | 🔲 Not started | — |
+| 2 — Revision snapshots | ✅ Complete | 20/20 tests pass |
+| 3 — Impact analysis + analyze command | ✅ Complete | 26/26 tests pass |
+| 4 — Triage + pipeline | ✅ Complete | 24/24 tests pass |
+| 5 — Setup + command integration | ✅ Complete | 22/22 tests pass |
+
+**Full suite: 127/127 tests pass.**
 
 ---
 
@@ -176,24 +178,28 @@ A newly written probe must be committed into the selected head ref before it can
 
 | Item | Needed by | Status |
 |---|---|---|
-| `WorktreeContext` dataclass confirmed by Lane 2 | Slice 2 | ⏳ Pending Lane 2 review |
-| `ExecutionResult` dataclass confirmed by Lane 2 | Slice 4 | ⏳ Pending Lane 2 review |
-| `validate_and_build_decision` signature confirmed by Lane 4 | Slice 5 | ⏳ Pending Lane 4 review |
-| Frontend asset path in package confirmed by Lane 3 | Slice 5 | ⏳ Pending Lane 3 review |
+| `WorktreeContext` dataclass confirmed by Lane 2 | Milestone 1 | ⏳ Pending Lane 2 review |
+| `ExecutionResult` dataclass confirmed by Lane 2 | Milestone 1 | ⏳ Pending Lane 2 review |
+| `validate_and_build_decision` signature confirmed by Lane 4 | Milestone 2 | ⏳ Pending Lane 4 review |
+| Frontend asset path in package confirmed by Lane 3 | Milestone 3 | ⏳ Pending Lane 3 review |
 | Progress step enum changes (if any) | All | Any change requires Lane 1 approval |
 
 ---
 
-## Next: Slice 2 — Revision snapshots
+## Next: Milestone 1 integration check
 
-**Goal:** `WorktreeManager` context manager + ref resolver.
+All five Lane 1 slices are complete. The first integration milestone is:
 
-**Checks that define done:**
-1. `WorktreeManager(repo, "demo-base", "demo-rounding-change")` creates two worktrees outside the repo root
-2. Both worktrees contain the correct committed content for their respective refs
-3. Worktrees are cleaned up on normal exit
-4. Worktrees are cleaned up when an exception is raised inside the `with` block
-5. The developer's branch, index, and uncommitted files are unchanged after (3) and (4)
-6. `WorktreeContext.base_commit` and `head_commit` are full 40-char SHAs
-7. `WorktreeContext.changed_files` contains repo-relative paths, not absolute paths
-8. An unresolvable ref raises a clear error before any worktree is created
+> `bobreviewer analyze --before demo-base --after demo-rounding-change`
+> → `discount.apply_discount` changed
+> → `invoice.calculate_invoice` appears as a resolved caller in `invoice.py` with a file/line location
+> → `invoice.py` is NOT in the diff
+> → `evidence.json` validates against the schema
+
+**To verify:** Set up the demo sample project (Lane 2's responsibility per the spec) with committed tags `demo-base` and `demo-rounding-change`, then run the `analyze` command above. The output should satisfy L1-P0-1 and L1-P0-2 acceptance criteria.
+
+**Pending integrations (Lane 1 wiring is ready; awaiting the other lanes):**
+- `bobreviewer run` full execution: awaiting `bobthereviewer.executor` (Lane 2)
+- `bobreviewer ui`: awaiting `bobthereviewer.server` (Lane 2)
+- `bobreviewer decide`: awaiting `bobthereviewer.decide_cmd` (Lane 4)
+- Frontend assets: awaiting Lane 3's built bundle committed to `src/bobthereviewer/frontend/`
