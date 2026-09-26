@@ -51,6 +51,7 @@ def make_decision(
         "head_commit": "c" * 40,
         "probe_file": "probes/pricing_basic.json",
         "probe_hash": "d" * 64,
+        "case_id": "case-1",
         "observed_before": 60.0,
         "observed_after": {"exception": "ValidationError", "message": "Discount exceeds maximum"},
         "verdict": verdict,

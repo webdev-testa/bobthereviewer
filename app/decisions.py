@@ -16,6 +16,7 @@ lookup(repo, file_path, symbol, default_branch) -> list[dict]
 """
 from __future__ import annotations
 
+import datetime
 import json
 import pathlib
 import re
@@ -138,6 +139,129 @@ def validate_and_save(
         f"git commit -m 'decision: {symbol} — {verdict}'"
     )
     return output_path, git_command
+
+
+def validate_and_build_decision(
+    run_id: str,
+    symbol: str,
+    probe_file: str,
+    case_id: str,
+    verdict: str,
+    rationale: str,
+    evidence: dict,
+) -> dict:
+    """Validate verdict, rationale, and inputs against evidence, and build a decision dict.
+
+    Parameters
+    ----------
+    run_id:
+        UUID of the run to associate this decision with. Must match evidence['run_id'].
+    symbol:
+        Fully-qualified function name under review.
+    probe_file:
+        Repo-relative path to the probe file (or empty string to match from evidence).
+    case_id:
+        Stable case ID within the probe.
+    verdict:
+        One of 'intended', 'unintended', or 'unresolved'.
+    rationale:
+        Human-written rationale. Must be non-empty (>= 10 chars) if verdict is 'intended'.
+    evidence:
+        Full evidence bundle dict.
+
+    Returns
+    -------
+    dict
+        Validated decision record ready to be saved via validate_and_save.
+
+    Raises
+    ------
+    ValueError
+        On validation failure (verdict, rationale, run_id, or missing case in evidence).
+    """
+    allowed_verdicts = {"intended", "unintended", "unresolved"}
+    if verdict not in allowed_verdicts:
+        raise ValueError(
+            f"Invalid verdict '{verdict}'. Allowed verdicts are: {', '.join(sorted(allowed_verdicts))}"
+        )
+
+    if verdict == "intended":
+        if len(rationale.strip()) < _MIN_RATIONALE_CHARS:
+            raise ValueError(
+                "Intended verdict requires a meaningful rationale of at least "
+                f"{_MIN_RATIONALE_CHARS} non-whitespace characters after trimming. "
+                f"Provided rationale has {len(rationale.strip())} characters."
+            )
+
+    ev_run_id = evidence.get("run_id")
+    if ev_run_id and ev_run_id != run_id:
+        raise ValueError(
+            f"Run ID mismatch: requested '{run_id}' but evidence has '{ev_run_id}'"
+        )
+
+    # Find the target probe and case in evidence probe_results
+    matching_probe = None
+    matching_case = None
+
+    for probe in evidence.get("probe_results", []):
+        if probe_file and probe.get("probe_file") != probe_file:
+            continue
+        for case in probe.get("cases", []):
+            if case.get("id") == case_id:
+                matching_case = case
+                matching_probe = probe
+                break
+        if matching_case:
+            break
+
+    if not matching_case:
+        raise ValueError(
+            f"Case '{case_id}' was not found in evidence probe results for symbol '{symbol}'."
+        )
+
+    actual_probe_file = matching_probe.get("probe_file", probe_file)
+    probe_hash = matching_probe.get("probe_hash", "")
+    observed_before = matching_case.get("base_output")
+    observed_after = matching_case.get("head_output")
+
+    # Locate file_path for symbol from changed_functions if available
+    file_path = ""
+    for cf in evidence.get("changed_functions", []):
+        if cf.get("symbol") == symbol:
+            file_path = cf.get("file_path", "")
+            break
+    if not file_path:
+        file_path = actual_probe_file
+
+    timestamp = (
+        datetime.datetime.now(datetime.timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+    decision_data = {
+        "schema_version": "1",
+        "run_id": run_id,
+        "repository": evidence.get("repository", ""),
+        "file_path": file_path,
+        "symbol": symbol,
+        "base_commit": evidence.get("base_commit", ""),
+        "head_commit": evidence.get("head_commit", ""),
+        "probe_file": actual_probe_file,
+        "probe_hash": probe_hash,
+        "case_id": case_id,
+        "observed_before": observed_before,
+        "observed_after": observed_after,
+        "verdict": verdict,
+        "rationale": rationale,
+        "status": "proposed",
+        "timestamp": timestamp,
+    }
+
+    schema = _load_schema(_DECISION_SCHEMA_PATH)
+    _validate_schema(decision_data, schema, "Decision")
+
+    return decision_data
 
 
 def lookup(

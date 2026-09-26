@@ -1,41 +1,35 @@
-# contracts/local-server-api.md — Local Server API Contract
+# bobreviewer Local Server API Contract
 
-> **Owner:** Lane 2 implements · Lane 3 consumes · Lane 4 (decision validation service) is called by `POST /decide`
-> Lane 1 coordinates all changes to this document.
+**Owner:** Lane 1 defines; Lane 2 implements; Lane 3 consumes.  
+**Transport:** HTTP/1.1, `127.0.0.1` only.  
+**Auth:** Every request requires `Authorization: Bearer <token>` or `?token=<token>`. Token is generated per-launch and printed to the terminal.  
+**Format:** All request and response bodies are `application/json`.
 
-## Overview
+---
 
-The local developer UI server (`bobreviewer ui`) is an HTTP/1.1 server bound exclusively to `localhost`. It serves the pre-built frontend and exposes a JSON API for run management and decision recording.
+## Security constraints (all required, enforced by Lane 2)
 
-A per-launch random token is generated at startup and printed to the terminal. Every API request must include it.
-
-## Security Constraints (all required)
-
-| Rule | Enforcement |
+| Constraint | Rule |
 |---|---|
-| Bind address | `127.0.0.1` only — never `0.0.0.0` |
-| Host header | Must be `localhost` or `127.0.0.1`; all other values → HTTP 403 |
-| Token | `Authorization: Bearer <token>` header **or** `?token=<token>` query param; missing or wrong → HTTP 401 |
-| `run_id` parameters | UUID format only (`[0-9a-f-]{36}`); any other value → HTTP 400 |
+| Bind address | `127.0.0.1` only — not `0.0.0.0` |
+| `Host` header | Must be `localhost` or `127.0.0.1`; any other value → HTTP 403 |
+| Missing/wrong token | HTTP 401 |
+| `run_id` parameter | UUID format only (`[0-9a-f-]{36}`); path traversal sequences → HTTP 400 |
 | File path parameters | Repo-relative paths only; absolute paths and `..` sequences → HTTP 400 |
 
-## Authentication
-
-```
-Authorization: Bearer <token>
-```
-or
-```
-GET /api/runs?token=<token>
-```
+---
 
 ## Endpoints
 
+### `GET /`
+Serve the developer UI frontend (pre-built static assets shipped with the Python package).
+
+---
+
 ### `GET /api/runs`
+List all saved runs.
 
-List all saved runs in `.bobreviewer/runs/`.
-
-**Response:** `200 OK`
+**Response 200:**
 ```json
 [
   {
@@ -43,140 +37,101 @@ List all saved runs in `.bobreviewer/runs/`.
     "generated_at": "<ISO-8601>",
     "base_ref": "<ref>",
     "head_ref": "<ref>",
+    "base_commit": "<full-sha>",
+    "head_commit": "<full-sha>",
     "triage_category": "code | docs-only | tests-only | config-deps | no-semantic-change"
   }
 ]
 ```
+Returns `[]` when no runs are saved. Each entry matches `contracts/run-metadata.schema.json`.
 
 ---
 
 ### `GET /api/runs/{run_id}`
+Return the full `evidence.json` for the given run.
 
-Return the full `evidence.json` for a given run.
-
-**Path param:** `run_id` — UUID format only.
-
-**Response:** `200 OK` — full `evidence.json` object.
-
-**Errors:**
-- `400` — invalid `run_id` format or path traversal
-- `404` — run not found
+**Response 200:** The complete evidence bundle matching `contracts/evidence.schema.json`.  
+**Response 400:** `run_id` is not a valid UUID or contains traversal sequences.  
+**Response 404:** No run with this ID exists in `.bobreviewer/runs/`.
 
 ---
 
 ### `POST /api/runs`
-
-Start a new `bobreviewer run` in the background. Returns immediately with the new `run_id`; progress is streamed via SSE.
+Start a new review run. Returns immediately; progress is streamed via SSE.
 
 **Request body:**
 ```json
 {
-  "before_ref": "<ref>",
-  "after_ref": "<ref>",
-  "probes": ["<repo-relative probe path>"],
-  "prior_run_id": "<uuid or null>"
+  "before_ref": "<ref string>",
+  "after_ref": "<ref string>",
+  "probes": ["<repo-relative path>"],
+  "prior_run_id": "<uuid or omit>"
 }
 ```
+`probes` may be an empty array. `prior_run_id` is optional.
 
-**Response:** `202 Accepted`
+**Response 202:**
 ```json
 { "run_id": "<uuid>" }
 ```
 
-**Errors:**
-- `400` — missing required fields or invalid path
-- `422` — ref validation failed (ref does not exist)
+**Response 400:** Invalid ref format or path traversal in probe path.  
+**Response 409:** A run is already active (one active run at a time).
 
 ---
 
 ### `GET /api/runs/{run_id}/progress`
+Stream progress events for an active or completed run as Server-Sent Events.
 
-Server-Sent Events stream of progress events for an active or completed run.
-
-**Path param:** `run_id` — UUID format only.
-
-**Event shape** (each event is a JSON object on a `data:` line):
-```json
-{
-  "run_id": "<uuid>",
-  "step": "triage | analyze | test_base | test_head | probe_base | probe_head | done | error",
-  "status": "started | completed | failed",
-  "message": "<human-readable string>",
-  "timestamp": "<ISO-8601>"
-}
+**Response:** `Content-Type: text/event-stream`  
+Each event is a JSON object matching `contracts/progress-event.schema.json`, serialised as:
 ```
-
-**Response:** `200 OK` with `Content-Type: text/event-stream`.
-
-**Errors:**
-- `400` — invalid `run_id`
-- `404` — run not found
+data: {"run_id":"...","step":"analyze","status":"started","message":"...","timestamp":"..."}\n\n
+```
+The stream closes after a `done` or `error` event. Clients may reconnect; completed runs replay their full event history.
 
 ---
 
 ### `POST /api/decide`
-
-Save a decision for a probe case. Delegates validation to Lane 4's decision validation service.
+Save a decision for a specific probe case result. Delegates to Lane 4's decision validation service.
 
 **Request body:**
 ```json
 {
   "run_id": "<uuid>",
-  "symbol": "<fully.qualified.function.name>",
+  "symbol": "<fully.qualified.name>",
+  "probe_file": "<repo-relative path>",
   "case_id": "<stable case id>",
   "verdict": "intended | unintended | unresolved",
   "rationale": "<string>"
 }
 ```
 
-**Response:** `200 OK`
+**Response 200:**
 ```json
 {
   "file_path": ".bobreviewer/decisions/<symbol>-<head_commit_short>.json",
-  "git_command": "git add .bobreviewer/decisions/<file> && git commit -m 'decision: <symbol> — <verdict>'"
+  "git_command": "git add .bobreviewer/decisions/<file> && git commit -m \"chore: add decision for <symbol>\""
 }
 ```
 
-**Errors:**
-- `401` — missing or invalid token
-- `422` — validation error (e.g., `intended` with empty rationale)
-  ```json
-  { "error": "<human-readable message>" }
-  ```
-- `404` — `run_id` not found in saved runs
-
----
-
-### `GET /`
-
-Serve the developer UI frontend (static assets shipped with the Python package).
-
-**Response:** `200 OK` — `text/html`
-
----
-
-## Progress Event Contract
-
-Progress events are emitted in two places:
-1. **CLI stdout** — newline-delimited JSON during `bobreviewer run`
-2. **SSE stream** — via `GET /api/runs/{run_id}/progress`
-
-Both use the same event shape:
-
+**Response 400:** `run_id` not found or case_id not found in saved evidence.  
+**Response 422:** Validation error from Lane 4's service (e.g. `intended` verdict with empty rationale).
 ```json
 {
-  "run_id": "<uuid>",
-  "step": "triage | analyze | test_base | test_head | probe_base | probe_head | done | error",
-  "status": "started | completed | failed",
-  "message": "<human-readable string>",
-  "timestamp": "<ISO-8601>"
+  "error": "validation_failed",
+  "detail": "<human-readable description>"
 }
 ```
 
-`step` enum values:
-- `triage` — diff classification
-- `analyze` — AST caller analysis
-- `test_base` / `test_head` — pytest run on base/head worktree
-- `probe_base` / `probe_head` — probe execution on base/head worktree
-- `done` — run completed successfully
-- `error` — run failed with a hard error
+---
+
+## One-active-run constraint
+
+The server supports exactly one repository at a time and one active run at a time. Attempting to start a second run while one is active returns HTTP 409. This is a local developer tool, not a server.
+
+---
+
+## Change process
+
+Any change to this contract requires Lane 1 approval before Lane 2 or Lane 3 implements it. New endpoints or modified response shapes must be reflected in this file before any lane builds against them.

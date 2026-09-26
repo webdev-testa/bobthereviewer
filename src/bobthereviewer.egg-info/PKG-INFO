@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: bobthereviewer
+Version: 0.1.0.dev0
+Summary: Find what a code change actually affects and whether the difference was intentional
+License: MIT
+Requires-Python: >=3.11
+License-File: LICENSE
+Requires-Dist: jsonschema>=4.21
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Dynamic: license-file

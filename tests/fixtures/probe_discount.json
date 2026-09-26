@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "target": "demo.discount.apply_discount",
+  "fixture": true,
+  "cases": [
+    {
+      "id": "basic",
+      "args": [100.0, 0.10],
+      "kwargs": {}
+    },
+    {
+      "id": "zero_discount",
+      "args": [100.0, 0.0],
+      "kwargs": {}
+    }
+  ]
+}

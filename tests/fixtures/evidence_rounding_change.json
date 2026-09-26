@@ -1,0 +1,69 @@
+{
+  "schema_version": "1",
+  "run_id": "00000000-0000-0000-0000-000000000001",
+  "generated_at": "2026-01-01T00:00:00Z",
+  "repository": "https://github.com/webdev-testa/bobthereviewer.git",
+  "base_ref": "demo-base",
+  "head_ref": "demo-rounding-change",
+  "base_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "prior_run_id": null,
+  "ci_run_url": null,
+  "frozen_suite_hash": null,
+  "fixture": true,
+  "triage": {
+    "category": "code",
+    "skipped": false,
+    "skip_reason": null
+  },
+  "analysis_limits": {
+    "max_hops": 2,
+    "notes": []
+  },
+  "changed_functions": [
+    {
+      "symbol": "demo.discount.apply_discount",
+      "file_path": "demo/sample_project/discount.py",
+      "callers": [
+        {
+          "symbol": "demo.invoice.calculate_invoice",
+          "file_path": "demo/sample_project/invoice.py",
+          "line": 12,
+          "in_diff": false,
+          "resolution": "resolved",
+          "needs_probe": true,
+          "via": null
+        }
+      ],
+      "unknown_references": []
+    }
+  ],
+  "test_results": {
+    "base": {},
+    "head": {}
+  },
+  "probe_results": [
+    {
+      "probe_file": ".bobreviewer/probes/invoice_basic.json",
+      "probe_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "target": "demo.invoice.calculate_invoice",
+      "prior_difference_run_id": null,
+      "cases": [
+        {
+          "id": "basic",
+          "args": [10, 9.99],
+          "kwargs": {},
+          "base_output": 100.0,
+          "head_output": 99.99,
+          "execution_status": "success",
+          "comparison_status": "differ",
+          "inconclusive_reason": null,
+          "inconclusive_detail": null,
+          "base_executed_at": "2026-01-01T00:00:01Z",
+          "head_executed_at": "2026-01-01T00:00:02Z"
+        }
+      ]
+    }
+  ],
+  "decisions": []
+}

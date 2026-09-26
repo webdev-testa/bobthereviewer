@@ -1,0 +1,5 @@
+jsonschema>=4.21
+
+[dev]
+pytest>=8
+pytest-cov

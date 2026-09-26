@@ -13,7 +13,12 @@ import pytest
 # Ensure the project root is importable when running from any directory
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
-from app.decisions import validate_and_save, lookup, _MIN_RATIONALE_CHARS
+from app.decisions import (
+    validate_and_save,
+    lookup,
+    validate_and_build_decision,
+    _MIN_RATIONALE_CHARS,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -30,6 +35,7 @@ VALID_BASE = {
     "head_commit": "b" * 40,
     "probe_file": "probes/discount_basic.json",
     "probe_hash": "c" * 64,
+    "case_id": "case-1",
     "observed_before": 100.0,
     "observed_after": 99.99,
     "verdict": "unintended",
@@ -228,3 +234,111 @@ class TestLookup:
             decisions_dir=tmp_path,
         )
         assert results == []
+
+
+# ---------------------------------------------------------------------------
+# validate_and_build_decision (Lane 1 <-> Lane 4 integration)
+# ---------------------------------------------------------------------------
+
+class TestValidateAndBuildDecision:
+    SAMPLE_EVIDENCE = {
+        "schema_version": "1",
+        "run_id": "00000000-0000-0000-0000-000000000001",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "repository": "https://github.com/example/bobthereviewer",
+        "base_ref": "main",
+        "head_ref": "feature",
+        "base_commit": "a" * 40,
+        "head_commit": "b" * 40,
+        "changed_functions": [
+            {
+                "symbol": "pricing.discount.apply_discount",
+                "file_path": "pricing/discount.py",
+                "callers": [],
+                "unknown_references": [],
+            }
+        ],
+        "probe_results": [
+            {
+                "probe_file": "probes/discount.json",
+                "probe_hash": "c" * 64,
+                "target": "pricing.discount.apply_discount",
+                "cases": [
+                    {
+                        "id": "case-1",
+                        "args": [100.0, 0.1],
+                        "kwargs": {},
+                        "base_output": 90.0,
+                        "head_output": 89.99,
+                        "status": "differ",
+                    }
+                ],
+            }
+        ],
+    }
+
+    def test_valid_intended_builds_decision(self):
+        dec = validate_and_build_decision(
+            run_id="00000000-0000-0000-0000-000000000001",
+            symbol="pricing.discount.apply_discount",
+            probe_file="probes/discount.json",
+            case_id="case-1",
+            verdict="intended",
+            rationale="Updated rounding logic per accounting specifications.",
+            evidence=self.SAMPLE_EVIDENCE,
+        )
+        assert dec["case_id"] == "case-1"
+        assert dec["verdict"] == "intended"
+        assert dec["observed_before"] == 90.0
+        assert dec["observed_after"] == 89.99
+        assert dec["status"] == "proposed"
+        assert dec["file_path"] == "pricing/discount.py"
+
+    def test_intended_empty_rationale_raises(self):
+        with pytest.raises(ValueError, match="meaningful rationale"):
+            validate_and_build_decision(
+                run_id="00000000-0000-0000-0000-000000000001",
+                symbol="pricing.discount.apply_discount",
+                probe_file="probes/discount.json",
+                case_id="case-1",
+                verdict="intended",
+                rationale="   ",
+                evidence=self.SAMPLE_EVIDENCE,
+            )
+
+    def test_invalid_verdict_raises(self):
+        with pytest.raises(ValueError, match="Invalid verdict"):
+            validate_and_build_decision(
+                run_id="00000000-0000-0000-0000-000000000001",
+                symbol="pricing.discount.apply_discount",
+                probe_file="probes/discount.json",
+                case_id="case-1",
+                verdict="invalid_verdict",
+                rationale="Some text",
+                evidence=self.SAMPLE_EVIDENCE,
+            )
+
+    def test_case_id_not_found_raises(self):
+        with pytest.raises(ValueError, match="not found"):
+            validate_and_build_decision(
+                run_id="00000000-0000-0000-0000-000000000001",
+                symbol="pricing.discount.apply_discount",
+                probe_file="probes/discount.json",
+                case_id="nonexistent-case",
+                verdict="unintended",
+                rationale="",
+                evidence=self.SAMPLE_EVIDENCE,
+            )
+
+    def test_run_id_mismatch_raises(self):
+        with pytest.raises(ValueError, match="Run ID mismatch"):
+            validate_and_build_decision(
+                run_id="00000000-0000-0000-0000-000000000999",
+                symbol="pricing.discount.apply_discount",
+                probe_file="probes/discount.json",
+                case_id="case-1",
+                verdict="unintended",
+                rationale="",
+                evidence=self.SAMPLE_EVIDENCE,
+            )
+

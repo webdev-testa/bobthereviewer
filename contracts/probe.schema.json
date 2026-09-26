@@ -1,7 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Probe",
-  "description": "A committed probe file describing a target function and fixed inputs to run against both revisions.",
+  "$id": "bobreviewer/probe",
+  "title": "bobreviewer probe",
+  "description": "Committed probe file under .bobreviewer/probes/ or probes/ (legacy)",
   "type": "object",
   "required": ["schema_version", "target", "cases"],
   "additionalProperties": false,
@@ -12,7 +13,8 @@
     },
     "target": {
       "type": "string",
-      "description": "Fully qualified function name, e.g. sample_project.pricing.discount.apply_discount"
+      "minLength": 1,
+      "description": "Fully-qualified dotted name of the function under test, e.g. mypackage.billing.calculate_invoice"
     },
     "cases": {
       "type": "array",
@@ -24,18 +26,23 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Unique stable string identifier for this case"
+            "minLength": 1,
+            "description": "Stable unique identifier for this case within the probe file"
           },
           "args": {
             "type": "array",
-            "description": "Positional arguments to pass to the target function"
+            "description": "Positional arguments passed to the target function"
           },
           "kwargs": {
             "type": "object",
-            "description": "Keyword arguments to pass to the target function"
+            "description": "Keyword arguments passed to the target function"
           }
         }
       }
+    },
+    "fixture": {
+      "type": "boolean",
+      "description": "When true, this probe is illustrative/test data and must never be treated as real execution evidence"
     }
   }
 }
