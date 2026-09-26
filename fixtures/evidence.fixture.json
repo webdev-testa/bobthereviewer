@@ -1,0 +1,133 @@
+{
+  "schema_version": "1",
+  "fixture": true,
+  "run_id": "00000000-0000-0000-0000-000000000001",
+  "generated_at": "2025-01-01T00:00:00Z",
+  "repository": "https://github.com/example/bobthereviewer",
+  "base_ref": "demo-base",
+  "head_ref": "demo-rounding-change",
+  "base_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "prior_run_id": null,
+  "ci_run_url": "https://github.com/example/bobthereviewer/actions/runs/1",
+  "frozen_suite_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "analysis_limits": {
+    "max_hops": 2,
+    "notes": [
+      "FIXTURE — not real evidence. Replace with output from bobreviewer run.",
+      "Dynamic dispatch via getattr is not resolved and appears in unknown_references."
+    ]
+  },
+  "changed_functions": [
+    {
+      "symbol": "sample_project.pricing.discount.apply_discount",
+      "file_path": "sample_project/pricing/discount.py",
+      "callers": [
+        {
+          "symbol": "sample_project.pricing.invoice.calculate_invoice",
+          "file_path": "sample_project/pricing/invoice.py",
+          "line": 18,
+          "in_diff": false,
+          "resolution": "resolved",
+          "needs_probe": true
+        }
+      ],
+      "unknown_references": [
+        {
+          "file_path": "sample_project/pricing/utils.py",
+          "line": 42,
+          "reason": "Dynamic reference via getattr — cannot resolve statically"
+        }
+      ]
+    }
+  ],
+  "test_results": {
+    "base": {
+      "tests/test_discount.py::test_basic_discount": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::test_zero_discount": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_invoice.py::test_invoice_total": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_invoice.py::test_invoice_edge_case": {
+        "status": "fail",
+        "message": "AssertionError: expected 0.0, got -0.01"
+      }
+    },
+    "head": {
+      "tests/test_discount.py::test_basic_discount": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::test_zero_discount": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_invoice.py::test_invoice_total": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_invoice.py::test_invoice_edge_case": {
+        "status": "fail",
+        "message": "AssertionError: expected 0.0, got -0.01"
+      }
+    }
+  },
+  "probe_results": [
+    {
+      "probe_file": "probes/invoice_basic.json",
+      "probe_hash": "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+      "target": "sample_project.pricing.invoice.calculate_invoice",
+      "prior_difference_run_id": null,
+      "cases": [
+        {
+          "id": "invoice-standard-order",
+          "args": [[39.46, 39.46, 8.78, 8.78, 8.78], 0.05],
+          "kwargs": {},
+          "base_output": 100.0,
+          "head_output": 99.99,
+          "status": "differ",
+          "inconclusive_reason": null,
+          "base_executed_at": "2025-01-01T00:00:01Z",
+          "head_executed_at": "2025-01-01T00:00:02Z"
+        },
+        {
+          "id": "invoice-missing-dep",
+          "args": [[10.0], 0.1],
+          "kwargs": {},
+          "base_output": null,
+          "head_output": null,
+          "status": "inconclusive",
+          "inconclusive_reason": "import_error: ModuleNotFoundError: No module named 'optional_dep'",
+          "base_executed_at": "2025-01-01T00:00:03Z",
+          "head_executed_at": "2025-01-01T00:00:04Z"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "1",
+      "run_id": "00000000-0000-0000-0000-000000000001",
+      "repository": "https://github.com/example/bobthereviewer",
+      "file_path": "sample_project/pricing/invoice.py",
+      "symbol": "sample_project.pricing.invoice.calculate_invoice",
+      "base_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "head_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "probe_file": "probes/invoice_basic.json",
+      "probe_hash": "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+      "observed_before": 100.0,
+      "observed_after": 99.99,
+      "verdict": "unintended",
+      "rationale": "",
+      "status": "proposed",
+      "timestamp": "2025-01-01T00:01:00Z"
+    }
+  ]
+}

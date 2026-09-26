@@ -1,0 +1,188 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Evidence",
+  "description": "The central evidence bundle produced by bobreviewer run. Single source of truth for the report, viewer, and Bob workflow.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "generated_at",
+    "repository",
+    "base_ref",
+    "head_ref",
+    "base_commit",
+    "head_commit"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "UUID for this run"
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "ISO-8601 timestamp"
+    },
+    "repository": {
+      "type": "string",
+      "description": "Remote origin URL"
+    },
+    "base_ref": {
+      "type": "string",
+      "description": "Git ref string for the base revision"
+    },
+    "head_ref": {
+      "type": "string",
+      "description": "Git ref string for the head revision"
+    },
+    "base_commit": {
+      "type": "string",
+      "description": "Full SHA of the base commit"
+    },
+    "head_commit": {
+      "type": "string",
+      "description": "Full SHA of the head commit"
+    },
+    "prior_run_id": {
+      "type": ["string", "null"],
+      "description": "UUID of a prior run linked via --prior-report"
+    },
+    "ci_run_url": {
+      "type": ["string", "null"],
+      "description": "URL of the CI run that produced this evidence"
+    },
+    "frozen_suite_hash": {
+      "type": ["string", "null"],
+      "description": "SHA-256 of sorted frozen test file paths and their contents"
+    },
+    "fixture": {
+      "type": "boolean",
+      "description": "When true this is a labeled fixture, not real evidence"
+    },
+    "analysis_limits": {
+      "type": "object",
+      "properties": {
+        "max_hops": { "type": "integer" },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "changed_functions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["symbol", "file_path"],
+        "properties": {
+          "symbol": { "type": "string" },
+          "file_path": { "type": "string" },
+          "callers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["symbol", "file_path", "line", "in_diff", "resolution"],
+              "properties": {
+                "symbol": { "type": "string" },
+                "file_path": { "type": "string" },
+                "line": { "type": "integer" },
+                "in_diff": { "type": "boolean" },
+                "resolution": {
+                  "type": "string",
+                  "enum": ["resolved", "unknown"]
+                },
+                "needs_probe": { "type": "boolean" }
+              }
+            }
+          },
+          "unknown_references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["file_path", "line", "reason"],
+              "properties": {
+                "file_path": { "type": "string" },
+                "line": { "type": "integer" },
+                "reason": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "test_results": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["pass", "fail", "error"]
+              },
+              "message": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "head": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["pass", "fail", "error"]
+              },
+              "message": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "probe_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["probe_file", "probe_hash", "target", "cases"],
+        "properties": {
+          "probe_file": { "type": "string" },
+          "probe_hash": { "type": "string" },
+          "target": { "type": "string" },
+          "prior_difference_run_id": { "type": ["string", "null"] },
+          "cases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "args", "kwargs", "base_output", "head_output", "status"],
+              "properties": {
+                "id": { "type": "string" },
+                "args": { "type": "array" },
+                "kwargs": { "type": "object" },
+                "base_output": {},
+                "head_output": {},
+                "status": {
+                  "type": "string",
+                  "enum": ["match", "differ", "inconclusive"]
+                },
+                "inconclusive_reason": { "type": ["string", "null"] },
+                "base_executed_at": { "type": "string" },
+                "head_executed_at": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "description": "Decision records loaded from .bobreviewer/decisions/ at run time"
+    }
+  }
+}
