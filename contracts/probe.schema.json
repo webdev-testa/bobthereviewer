@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Probe",
+  "description": "A committed probe file describing a target function and fixed inputs to run against both revisions.",
+  "type": "object",
+  "required": ["schema_version", "target", "cases"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "target": {
+      "type": "string",
+      "description": "Fully qualified function name, e.g. sample_project.pricing.discount.apply_discount"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "args", "kwargs"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique stable string identifier for this case"
+          },
+          "args": {
+            "type": "array",
+            "description": "Positional arguments to pass to the target function"
+          },
+          "kwargs": {
+            "type": "object",
+            "description": "Keyword arguments to pass to the target function"
+          }
+        }
+      }
+    }
+  }
+}

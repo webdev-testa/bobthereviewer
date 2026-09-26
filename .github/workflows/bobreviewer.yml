@@ -1,0 +1,137 @@
+name: Behavior Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  behavior-review:
+    name: Run Behavior Review
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository (full history for worktrees)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install bobthereviewer
+        run: pip install -e ".[dev]"
+
+      - name: Run behavior review
+        id: review
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          mkdir -p output
+          set +e
+          if python -c 'import app.cli' 2>/dev/null; then
+            bobreviewer run \
+              --before "$BASE_SHA" \
+              --after "$HEAD_SHA" \
+              --output output/
+          else
+            echo "app.cli is not available; using the development stub"
+            python scripts/bobreviewer_stub.py run \
+              --before "$BASE_SHA" \
+              --after "$HEAD_SHA" \
+              --output output/
+          fi
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Generate Markdown report and HTML viewer
+        if: always()
+        run: |
+          python scripts/generate_report.py \
+            --evidence output/evidence.json \
+            --out-md output/report.md \
+            --out-html output/report.html \
+            --ci-run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Upload evidence JSON artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: behavior-review-evidence
+          path: output/evidence.json
+          retention-days: 90
+
+      - name: Upload HTML viewer artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: behavior-review-html
+          path: output/report.html
+          retention-days: 90
+
+      - name: Post or update PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- bobreviewer-comment -->';
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const exitCode = '${{ steps.review.outputs.exit_code }}';
+
+            let body;
+            if (exitCode !== '0') {
+              body = [
+                MARKER,
+                '## ❌ Behavior Review Failed',
+                '',
+                `The behavior review CLI exited with code \`${exitCode}\`. See the [full run log](${runUrl}) for details.`,
+                '',
+                '> Installation or execution failures cannot masquerade as a passing report.',
+              ].join('\n');
+            } else {
+              const reportPath = 'output/report.md';
+              const reportMd = fs.existsSync(reportPath)
+                ? fs.readFileSync(reportPath, 'utf8')
+                : '_Report not generated — see run log._';
+              body = [
+                MARKER,
+                reportMd,
+                '',
+                '---',
+                `📎 **Artifacts:** [evidence.json](${runUrl}) · [report.html](${runUrl})`,
+                `🔗 [Full CI run](${runUrl})`,
+              ].join('\n');
+            }
+
+            // Find existing comment with our marker
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(MARKER));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
