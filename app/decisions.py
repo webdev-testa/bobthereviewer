@@ -71,7 +71,7 @@ def _symbol_to_slug(symbol: str) -> str:
 def validate_and_save(
     decision_data: dict,
     output_dir: pathlib.Path,
-) -> pathlib.Path:
+) -> tuple[pathlib.Path, str]:
     """Validate *decision_data* and write it as a decision JSON file.
 
     Parameters
@@ -84,8 +84,9 @@ def validate_and_save(
 
     Returns
     -------
-    pathlib.Path
-        The path of the written file.
+    tuple[pathlib.Path, str]
+        ``(written_path, git_command)`` — the path of the written file and a
+        suggested ``git add && git commit`` command string to print to the user.
 
     Raises
     ------
@@ -129,7 +130,14 @@ def validate_and_save(
         json.dumps(decision_data, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    return output_path
+
+    # Build a suggested git command for the developer
+    rel_path = str(output_path).replace("\\", "/")
+    git_command = (
+        f"git add {rel_path} && "
+        f"git commit -m 'decision: {symbol} — {verdict}'"
+    )
+    return output_path, git_command
 
 
 def lookup(
@@ -170,34 +178,32 @@ def lookup(
     if decisions_dir is None or not decisions_dir.exists():
         return []
 
-    # Collect all reachable file paths on the default branch using git.
-    # Only apply reachability filtering when the decisions_dir is inside the
-    # current working directory (i.e. inside the repo). If it is outside —
-    # which happens in tests that pass a tmp_path — skip filtering so all
-    # matching records in the directory are returned.
+    # Determine whether to apply reachability filtering.
+    # Per the spec: a decision is approved when its file exists in a commit
+    # reachable from HEAD on the default branch, checked via
+    # ``git show <branch>:<repo-relative-path>``.
+    #
+    # Only apply filtering when decisions_dir is inside the repo (i.e. relative
+    # to cwd is possible). Tests that pass a tmp_path outside the repo skip
+    # filtering so all matching records are returned — this is the correct
+    # test behaviour since tmp files are never in git history anyway.
     try:
         decisions_dir.relative_to(pathlib.Path.cwd())
         _within_repo = True
     except ValueError:
         _within_repo = False
 
-    reachable_paths = (
-        _get_reachable_decision_paths(default_branch, decisions_dir)
-        if _within_repo
-        else None
-    )
-
     results: list[dict] = []
     for json_file in sorted(decisions_dir.glob("*.json")):
-        if reachable_paths is not None:
-            # Compute repo-relative path and check reachability
+        if _within_repo:
+            # Compute repo-relative path for git show check
             try:
                 repo_relative = str(json_file.relative_to(pathlib.Path.cwd()))
             except ValueError:
                 repo_relative = str(json_file)
             repo_relative_normalised = repo_relative.replace("\\", "/")
-            if repo_relative_normalised not in reachable_paths:
-                continue  # not reachable on default branch → not approved
+            if not is_file_reachable_on_branch(default_branch, repo_relative_normalised):
+                continue  # not yet merged to default branch → not approved
 
         try:
             record = json.loads(json_file.read_text(encoding="utf-8"))
@@ -227,34 +233,23 @@ def _find_decisions_dir() -> Optional[pathlib.Path]:
     return None
 
 
-def _get_reachable_decision_paths(
+def is_file_reachable_on_branch(
     default_branch: str,
-    decisions_dir: pathlib.Path,
-) -> Optional[set[str]]:
-    """Return the set of repo-relative paths reachable from *default_branch*.
+    repo_relative_file_path: str,
+) -> bool:
+    """Check whether a specific file path exists in a commit reachable from *default_branch*.
 
-    Returns None if git is unavailable or the branch does not exist, in which
-    case the caller should not filter by reachability (fail-open).
+    Uses ``git show <branch>:<path>`` as specified in the project spec.
+    Returns True (approved) or False (not yet merged). Fail-open: returns True
+    when git is unavailable so development is not blocked.
     """
     try:
         result = subprocess.run(
-            ["git", "log", default_branch, "--name-only", "--pretty=format:"],
+            ["git", "show", f"{default_branch}:{repo_relative_file_path}"],
             capture_output=True,
             text=True,
             timeout=10,
         )
-        if result.returncode != 0:
-            return None  # branch may not exist yet; fail-open
-        paths = {
-            line.strip().replace("\\", "/")
-            for line in result.stdout.splitlines()
-            if line.strip()
-        }
-        # If git returned no file paths (empty history on this branch, or branch
-        # has never touched .bobreviewer/decisions/), fail-open so decision files
-        # in the directory are still surfaced during development and testing.
-        if not paths:
-            return None
-        return paths
+        return result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return None  # git not available; fail-open
+        return True  # git not available; fail-open

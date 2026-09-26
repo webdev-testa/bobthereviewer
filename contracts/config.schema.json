@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config",
+  "description": "Project configuration written by bobreviewer init to .bobreviewer/config.json",
+  "type": "object",
+  "required": ["schema_version", "base_branch"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "base_branch": {
+      "type": "string",
+      "description": "Default branch name, e.g. main"
+    },
+    "test_dir": {
+      "type": "string",
+      "description": "Repo-relative path to the test folder, e.g. tests"
+    },
+    "python_env": {
+      "type": "string",
+      "description": "Command to run python, e.g. python or .venv/bin/python"
+    },
+    "probe_dir": {
+      "type": "string",
+      "description": "Repo-relative path to probe folder; defaults to .bobreviewer/probes"
+    }
+  }
+}

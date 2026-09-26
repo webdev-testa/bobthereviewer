@@ -51,7 +51,7 @@ class TestValidateAndSave:
     def test_unintended_empty_rationale_writes_file(self, tmp_path):
         """unintended verdict with empty rationale should write successfully."""
         record = make_decision(verdict="unintended", rationale="")
-        path = validate_and_save(record, tmp_path)
+        path, git_cmd = validate_and_save(record, tmp_path)
         assert path.exists()
         written = json.loads(path.read_text())
         assert written["verdict"] == "unintended"
@@ -60,14 +60,14 @@ class TestValidateAndSave:
     def test_unresolved_writes_file(self, tmp_path):
         """unresolved verdict should write successfully."""
         record = make_decision(verdict="unresolved", rationale="")
-        path = validate_and_save(record, tmp_path)
+        path, git_cmd = validate_and_save(record, tmp_path)
         assert path.exists()
 
     def test_intended_with_good_rationale_writes_file(self, tmp_path):
         """intended with a sufficiently long rationale writes successfully."""
         rationale = "Updated tax rate per new government regulation effective Q1."
         record = make_decision(verdict="intended", rationale=rationale)
-        path = validate_and_save(record, tmp_path)
+        path, git_cmd = validate_and_save(record, tmp_path)
         assert path.exists()
         written = json.loads(path.read_text())
         assert written["rationale"] == rationale
@@ -95,7 +95,7 @@ class TestValidateAndSave:
     def test_status_always_forced_to_proposed(self, tmp_path):
         """status field is always written as proposed even if caller passes something else."""
         record = make_decision(verdict="unintended", status="approved")
-        path = validate_and_save(record, tmp_path)
+        path, git_cmd = validate_and_save(record, tmp_path)
         written = json.loads(path.read_text())
         assert written["status"] == "proposed"
 
@@ -105,7 +105,7 @@ class TestValidateAndSave:
             symbol="sample_project.pricing.discount.apply_discount",
             head_commit="bbbbbbb" + "b" * 33,
         )
-        path = validate_and_save(record, tmp_path)
+        path, git_cmd = validate_and_save(record, tmp_path)
         assert "apply_discount" in path.name
         assert "bbbbbbb" in path.name
         assert path.suffix == ".json"
@@ -116,6 +116,17 @@ class TestValidateAndSave:
         assert not deep.exists()
         validate_and_save(make_decision(), deep)
         assert deep.exists()
+
+    def test_git_command_returned(self, tmp_path):
+        """validate_and_save returns a (path, git_command) tuple."""
+        record = make_decision(verdict="unintended", rationale="")
+        result = validate_and_save(record, tmp_path)
+        assert isinstance(result, tuple) and len(result) == 2
+        path, git_cmd = result
+        assert path.exists()
+        assert "git add" in git_cmd
+        assert "git commit" in git_cmd
+        assert "unintended" in git_cmd
 
 
 # ---------------------------------------------------------------------------

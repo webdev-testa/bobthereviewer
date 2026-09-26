@@ -58,6 +58,25 @@
       "type": ["string", "null"],
       "description": "SHA-256 of sorted frozen test file paths and their contents"
     },
+    "triage": {
+      "type": "object",
+      "description": "Change triage classification",
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": ["docs-only", "tests-only", "config-deps", "no-semantic-change", "code"],
+          "description": "Diff classification category"
+        },
+        "skipped": {
+          "type": "boolean",
+          "description": "Whether tests and probes were skipped due to triage category"
+        },
+        "skip_reason": {
+          "type": ["string", "null"],
+          "description": "Human-readable reason for skipping, or null"
+        }
+      }
+    },
     "fixture": {
       "type": "boolean",
       "description": "When true this is a labeled fixture, not real evidence"

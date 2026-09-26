@@ -2,6 +2,11 @@
   "schema_version": "1",
   "fixture": true,
   "run_id": "00000000-0000-0000-0000-000000000001",
+  "triage": {
+    "category": "code",
+    "skipped": false,
+    "skip_reason": null
+  },
   "generated_at": "2025-01-01T00:00:00Z",
   "repository": "https://github.com/example/bobthereviewer",
   "base_ref": "demo-base",
@@ -81,7 +86,7 @@
   },
   "probe_results": [
     {
-      "probe_file": "probes/invoice_basic.json",
+      "probe_file": ".bobreviewer/probes/invoice_basic.json",
       "probe_hash": "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
       "target": "sample_project.pricing.invoice.calculate_invoice",
       "prior_difference_run_id": null,
