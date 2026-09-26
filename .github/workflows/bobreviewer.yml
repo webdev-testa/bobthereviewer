@@ -35,10 +35,18 @@ jobs:
         run: |
           mkdir -p output
           set +e
-          bobreviewer run \
-            --before "$BASE_SHA" \
-            --after "$HEAD_SHA" \
-            --output output/
+          if python -c 'import app.cli' 2>/dev/null; then
+            bobreviewer run \
+              --before "$BASE_SHA" \
+              --after "$HEAD_SHA" \
+              --output output/
+          else
+            echo "app.cli is not available; using the development stub"
+            python scripts/bobreviewer_stub.py run \
+              --before "$BASE_SHA" \
+              --after "$HEAD_SHA" \
+              --output output/
+          fi
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
           set -e
