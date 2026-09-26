@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -25,3 +25,17 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# report.json (per AGENTS.md)
+report.json
+
+# Web dev artifacts — local only
+web/node_modules/
+web/dist/
+web/dist-ssr/
+
+# NOTE: src/bobthereviewer/frontend/ is intentionally committed (pre-built bundle)
+
+# OS
+.DS_Store
+Thumbs.db

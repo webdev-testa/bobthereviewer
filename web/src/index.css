@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* ─── Theme tokens ──────────────────────────────────────────────────────── */
+@theme {
+  /* Semantic status colors */
+  --color-success:        oklch(62% 0.17 145);
+  --color-success-muted:  oklch(62% 0.17 145 / 15%);
+  --color-warning:        oklch(72% 0.18 75);
+  --color-warning-muted:  oklch(72% 0.18 75 / 15%);
+  --color-danger:         oklch(62% 0.22 25);
+  --color-danger-muted:   oklch(62% 0.22 25 / 15%);
+  --color-info:           oklch(62% 0.18 250);
+  --color-info-muted:     oklch(62% 0.18 250 / 15%);
+  --color-neutral:        oklch(55% 0 0);
+  --color-neutral-muted:  oklch(55% 0 0 / 12%);
+  --color-muted:          oklch(70% 0 0);
+
+  /* Surface */
+  --color-surface:        oklch(98% 0 0);
+  --color-surface-raised: oklch(96% 0 0);
+  --color-border:         oklch(90% 0 0);
+}
+
+/* ─── Dark mode overrides ───────────────────────────────────────────────── */
+.dark {
+  --color-success:        oklch(68% 0.17 145);
+  --color-warning:        oklch(76% 0.17 75);
+  --color-danger:         oklch(68% 0.20 25);
+  --color-info:           oklch(68% 0.18 250);
+  --color-surface:        oklch(14% 0 0);
+  --color-surface-raised: oklch(18% 0 0);
+  --color-border:         oklch(28% 0 0);
+  --color-muted:          oklch(50% 0 0);
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--color-surface);
+    color: var(--color-foreground, oklch(15% 0 0));
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .dark body {
+    color: var(--color-foreground, oklch(92% 0 0));
+  }
+
+  /* Visible focus ring for all interactive elements */
+  :focus-visible {
+    outline: 2px solid var(--color-info);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  /* Prevent horizontal overflow at narrow viewports */
+  #root {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+}
