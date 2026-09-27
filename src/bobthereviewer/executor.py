@@ -18,6 +18,7 @@ from typing import Any, Callable
 
 
 _DEFAULT_TIMEOUT = 10  # seconds per case execution
+BOOTSTRAP_PATH = str(Path(__file__).resolve().parent / "_bootstrap.py")
 
 
 def _now_iso() -> str:
@@ -30,7 +31,7 @@ class CaseExecutionResult:
 
     # Any JSON value, or {"exception": ..., "message": ...}, or None on timeout
     output: Any
-    # "ok" | "import_error" | "call_error" | "timeout"
+    # "ok" | "import_error" | "call_error" | "timeout" | "bootstrap_error"
     status_kind: str
     executed_at: str = field(default_factory=_now_iso)
 
@@ -83,7 +84,7 @@ def run_case(
 
     try:
         proc = subprocess.run(
-            [python_exe, "-m", "bobthereviewer._bootstrap"],
+            [python_exe, BOOTSTRAP_PATH],
             input=json.dumps(payload).encode(),
             capture_output=True,
             timeout=timeout_seconds,
@@ -95,10 +96,13 @@ def run_case(
             executed_at=executed_at,
         )
     except Exception as exc:
-        # Any other subprocess-level error (e.g. executable not found)
+        msg = str(exc)
+        for p in (worktree_path, python_exe, BOOTSTRAP_PATH):
+            if p:
+                msg = msg.replace(str(Path(p).resolve()), ".").replace(Path(p).resolve().as_posix(), ".")
         return CaseExecutionResult(
-            output={"exception": type(exc).__name__, "message": str(exc)},
-            status_kind="timeout",
+            output={"exception": type(exc).__name__, "message": msg},
+            status_kind="bootstrap_error",
             executed_at=executed_at,
         )
 
@@ -106,18 +110,26 @@ def run_case(
     stdout = proc.stdout.decode(errors="replace").strip()
     if proc.returncode != 0 or not stdout:
         stderr = proc.stderr.decode(errors="replace").strip()
+        msg = stderr or "bootstrap exited non-zero"
+        for p in (worktree_path, python_exe, BOOTSTRAP_PATH):
+            if p:
+                msg = msg.replace(str(Path(p).resolve()), ".").replace(Path(p).resolve().as_posix(), ".")
         return CaseExecutionResult(
-            output={"exception": "BootstrapError", "message": stderr or "bootstrap exited non-zero"},
-            status_kind="timeout",
+            output={"exception": "BootstrapError", "message": msg},
+            status_kind="bootstrap_error",
             executed_at=executed_at,
         )
 
     try:
         result = json.loads(stdout)
     except json.JSONDecodeError:
+        msg = f"unparseable stdout: {stdout[:200]}"
+        for p in (worktree_path, python_exe, BOOTSTRAP_PATH):
+            if p:
+                msg = msg.replace(str(Path(p).resolve()), ".").replace(Path(p).resolve().as_posix(), ".")
         return CaseExecutionResult(
-            output={"exception": "BootstrapError", "message": f"unparseable stdout: {stdout[:200]}"},
-            status_kind="timeout",
+            output={"exception": "BootstrapError", "message": msg},
+            status_kind="bootstrap_error",
             executed_at=executed_at,
         )
 
@@ -162,7 +174,7 @@ def run_case_with_repeat_check(
     first = run_case(worktree_path, python_exe, target, case, timeout_seconds, src_layout)
 
     # Structural errors: no point repeating
-    if first.status_kind in ("timeout", "import_error"):
+    if first.status_kind in ("timeout", "import_error", "bootstrap_error"):
         return RepeatedRunResult(first=first, second=first, is_nondeterministic=False)
 
     second = run_case(worktree_path, python_exe, target, case, timeout_seconds, src_layout)
@@ -175,27 +187,108 @@ def run_case_with_repeat_check(
 # Lane 1 pipeline integration — `pipeline._call_executor` calls `executor.run`
 # ---------------------------------------------------------------------------
 
-def _resolve_interpreter(config: dict | None) -> str:
-    """The interpreter for the project under review, falling back to this process."""
-    import configparser
+def _display_interpreter(python_exe: Path | str, repo_root: Path | str | None = None) -> str:
+    """Format an interpreter path as repo-relative or filename (never absolute path)."""
+    exe_p = Path(python_exe).resolve()
+    if repo_root:
+        try:
+            rel = exe_p.relative_to(Path(repo_root).resolve())
+            return str(rel)
+        except (ValueError, RuntimeError):
+            pass
+    try:
+        rel = exe_p.relative_to(Path.cwd().resolve())
+        return str(rel)
+    except (ValueError, RuntimeError):
+        pass
+    parts = exe_p.parts
+    for venv_name in (".venv", "venv"):
+        if venv_name in parts:
+            idx = parts.index(venv_name)
+            return str(Path(*parts[idx:]))
+    return exe_p.name
+
+
+def resolve_interpreter(
+    config: dict | None = None,
+    repo_root: Path | str | None = None,
+) -> tuple[str, str, str | None]:
+    """
+    Resolve the project's Python interpreter according to the spec order:
+    1. config python_env (or python)
+    2. .venv / venv at repo root (Windows and POSIX paths)
+    3. $VIRTUAL_ENV and $BOBREVIEWER_PYTHON
+    4. Tool's own interpreter (sys.executable) with fallback note.
+
+    Returns:
+    --------
+    (python_exe, display_name, fallback_note)
+    """
     import os
 
+    root = Path(repo_root).resolve() if repo_root else Path.cwd().resolve()
+
+    # 1. Configured interpreter
     if isinstance(config, dict):
         configured = config.get("python_env") or config.get("python")
-        if configured and Path(configured).exists():
-            return str(configured)
+        if configured:
+            p = Path(configured)
+            if not p.is_absolute() and repo_root:
+                p = (Path(repo_root) / p).resolve()
+            if p.exists():
+                return str(p), _display_interpreter(p, repo_root), None
 
-    root = Path.cwd()
-    for candidate in (
-        root / ".venv" / "bin" / "python",
-        root / ".venv" / "Scripts" / "python.exe",
-        root / "venv" / "bin" / "python",
+    # 2. .venv / venv at repo root (Windows and POSIX paths)
+    for candidate_rel in (
+        Path(".venv") / "Scripts" / "python.exe",
+        Path(".venv") / "bin" / "python",
+        Path("venv") / "Scripts" / "python.exe",
+        Path("venv") / "bin" / "python",
     ):
+        candidate = root / candidate_rel
         if candidate.exists():
-            return str(candidate)
+            return str(candidate), _display_interpreter(candidate, repo_root), None
 
-    # A configured interpreter may also be named by an env var or be this process.
-    return os.environ.get("BOBREVIEWER_PYTHON") or sys.executable
+    # 3. $VIRTUAL_ENV / $BOBREVIEWER_PYTHON
+    venv_env = os.environ.get("VIRTUAL_ENV")
+    if venv_env:
+        v_root = Path(venv_env).resolve()
+        for cand in (
+            v_root / "Scripts" / "python.exe",
+            v_root / "bin" / "python",
+        ):
+            if cand.exists():
+                return str(cand), _display_interpreter(cand, repo_root), None
+
+    bob_py = os.environ.get("BOBREVIEWER_PYTHON")
+    if bob_py and Path(bob_py).exists():
+        p = Path(bob_py).resolve()
+        return str(p), _display_interpreter(p, repo_root), None
+
+    # 4. Tool's own interpreter
+    tool_py = Path(sys.executable).resolve()
+    fallback_note = "Ran with bobreviewer's own Python; install the project's dependencies there or create .venv"
+    return str(tool_py), _display_interpreter(tool_py, repo_root), fallback_note
+
+
+def _resolve_interpreter(config: dict | None, repo_root: Path | str | None = None) -> str:
+    """The interpreter for the project under review, falling back to this process."""
+    exe, _, _ = resolve_interpreter(config, repo_root)
+    return exe
+
+
+def _has_src_package(worktree_path: Path | str) -> bool:
+    """Check if worktree has a src/ folder containing a package."""
+    src_dir = Path(worktree_path) / "src"
+    if not src_dir.is_dir():
+        return False
+    for item in src_dir.iterdir():
+        if item.is_file() and item.suffix == ".py":
+            return True
+        if item.is_dir() and not item.name.startswith((".", "_")):
+            if any(item.glob("*.py")) or (item / "__init__.py").exists():
+                return True
+    return False
 
 
 def _triage_dict(triage: Any) -> dict:
@@ -243,7 +336,13 @@ def run(
     triage_dict = _triage_dict(triage)
     base_path = str(ctx.base_path)
     head_path = str(ctx.head_path)
-    python_exe = _resolve_interpreter(config)
+    repo_root = getattr(ctx, "repo_root", None)
+    python_exe, py_display, fallback_note = resolve_interpreter(config, repo_root)
+    notes.append(f"Python interpreter: {py_display}")
+    if fallback_note:
+        notes.append(fallback_note)
+
+    src_layout = src_layout or _has_src_package(base_path) or _has_src_package(head_path)
 
     if triage_dict.get("skipped"):
         reason = triage_dict.get("skip_reason") or "docs-only diff"
@@ -262,7 +361,7 @@ def run(
 
     try:
         test_results, frozen_suite_hash = run_tests(
-            base_path, head_path, python_exe, triage_dict, emit, timeout_seconds
+            base_path, head_path, python_exe, triage_dict, emit, timeout_seconds, src_layout
         )
     except Exception as exc:  # noqa: BLE001 - execution failure is evidence, not a crash
         notes.append(f"Frozen test execution failed: {type(exc).__name__}: {exc}")

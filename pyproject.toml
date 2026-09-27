@@ -10,7 +10,6 @@ license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
     "jsonschema>=4.21",
-    "pytest-json-report>=1.5",
 ]
 
 [project.optional-dependencies]
@@ -18,7 +17,6 @@ dev = [
     "pytest>=8",
     "pytest-cov",
     "jsonschema>=4.21",
-    "pytest-json-report>=1.5",
 ]
 
 [project.scripts]

@@ -154,6 +154,9 @@ def render_markdown(evidence: dict) -> str:  # noqa: C901 (complexity acceptable
             for c in pr.get("cases", []):
                 reason = f" ({c['inconclusive_reason']})" if c.get("inconclusive_reason") else ""
                 status = c.get("comparison_status") or c["execution_status"]
+                prior_note = ""
+                if pr.get("prior_difference_run_id"):
+                    prior_note = f" (previously differed in run {pr['prior_difference_run_id']})"
                 decision_cell = ""
                 if status == "differ":
                     # Only a difference needs a human disposition; say so next to it.
@@ -163,7 +166,7 @@ def render_markdown(evidence: dict) -> str:  # noqa: C901 (complexity acceptable
                     )
                 a(f"| `{c['id']}` | {_fmt_output(c.get('base_output'))} "
                   f"| {_fmt_output(c.get('head_output'))} "
-                  f"| {_status_label(status)}{reason} | {decision_cell} |")
+                  f"| {_status_label(status)}{reason}{prior_note} | {decision_cell} |")
             a("")
         if any(c.get("comparison_status") == "differ"
                for pr in probe_results for c in pr.get("cases", [])):
