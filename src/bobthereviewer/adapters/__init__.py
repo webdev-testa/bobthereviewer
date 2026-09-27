@@ -1,6 +1,7 @@
 """Language adapters for multi-language impact analysis."""
 
 from bobthereviewer.adapters.registry import (
+    is_generated_source,
     LANGUAGES,
     TIERS,
     LanguageSpec,
@@ -10,6 +11,7 @@ from bobthereviewer.adapters.registry import (
 )
 
 __all__ = [
+    "is_generated_source",
     "LANGUAGES",
     "TIERS",
     "LanguageSpec",

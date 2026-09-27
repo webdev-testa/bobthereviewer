@@ -430,3 +430,21 @@ def test_find_changed_symbols_marks_readers_of_a_changed_constant(tmp_path):
     )
     symbols = [s for s, _ in _find_changed_symbols(base, head, ["pricing.py"])]
     assert symbols == ["pricing.calculate_price"]
+
+
+def test_minified_files_are_skipped_and_named_in_the_notes(tmp_path):
+    from bobthereviewer.adapters import is_generated_source
+    from bobthereviewer.analysis import analyze
+
+    bundle = "function a(){return 1}" * 200  # one long line, like a minified bundle
+    base, head = make_worktree_pair(tmp_path,
+        {"assets/app.js": bundle, "app.min.js": "x", "src/ok.js": "function ok() { return 1 }\n"},
+        {"assets/app.js": bundle + "function b(){return 2}", "app.min.js": "y", "src/ok.js": "function ok() { return 2 }\n"},
+    )
+    assert is_generated_source(head / "assets/app.js") and is_generated_source(head / "app.min.js")
+    assert not is_generated_source(head / "src/ok.js")
+
+    result = analyze(base, head, ["assets/app.js", "app.min.js", "src/ok.js"])
+    note = next(n for n in result.analysis_limits["notes"] if n.startswith("Skipped"))
+    assert "assets/app.js" in note and "app.min.js" in note and "src/ok.js" not in note
+    assert all(cf.file_path != "assets/app.js" for cf in result.changed_functions)

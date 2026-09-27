@@ -21,6 +21,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from bobthereviewer.adapters.registry import (
+    is_generated_source,
     LanguageSpec,
     get_language_spec_for_path,
 )
@@ -480,7 +481,7 @@ def _load_codebase(root: Path) -> dict[str, TSModule]:
             continue
         rel = path.relative_to(root).as_posix()
         spec = get_language_spec_for_path(rel)
-        if spec is None or spec.key == "python":
+        if spec is None or spec.key == "python" or is_generated_source(path):
             continue
         mod = _load_module(root, rel, spec)
         if mod is not None:

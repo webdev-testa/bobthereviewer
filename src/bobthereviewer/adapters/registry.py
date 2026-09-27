@@ -149,3 +149,23 @@ def format_analyzed_as(languages: list[dict] | None) -> str:
             desc = tier
         parts.append(f"{lang} ({desc})")
     return ", ".join(parts) if parts else "Python (full)"
+
+
+# Minified bundles and generated code are one enormous line of machine output: parsing them and
+# tracing callers through them takes forever and says nothing a reviewer can act on.
+_GENERATED_MAX_BYTES = 256_000
+_GENERATED_MAX_LINE = 2_000
+
+
+def is_generated_source(path: Path) -> bool:
+    """Whether a non-Python file looks minified or generated, and so is left out of analysis."""
+    if ".min." in path.name:
+        return True
+    try:
+        if path.stat().st_size > _GENERATED_MAX_BYTES:
+            return True
+        with path.open("rb") as fh:
+            head = fh.read(8192)
+    except OSError:
+        return False
+    return any(len(line) > _GENERATED_MAX_LINE for line in head.split(b"\n"))
