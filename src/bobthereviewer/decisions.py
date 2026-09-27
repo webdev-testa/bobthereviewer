@@ -225,14 +225,25 @@ def validate_and_build_decision(
     observed_before = matching_case.get("base_output")
     observed_after = matching_case.get("head_output")
 
-    # Locate file_path for symbol from changed_functions if available
+    # Locate the file_path for the symbol. A probe often targets a caller rather than a
+    # changed function (that is the whole point of probing an uncovered caller), so search
+    # the callers as well before falling back. Storing the probe's own path here would make
+    # the record unmatchable later: approval is keyed on the source file plus the symbol.
     file_path = ""
     for cf in evidence.get("changed_functions", []):
         if cf.get("symbol") == symbol:
             file_path = cf.get("file_path", "")
             break
+        for caller in cf.get("callers", []):
+            if caller.get("symbol") == symbol:
+                file_path = caller.get("file_path", "")
+                break
+        if file_path:
+            break
     if not file_path:
-        file_path = actual_probe_file
+        # Last resort: the probe's target module, as a repo-relative source path.
+        stem = actual_probe_file.rsplit("/", 1)[-1].removesuffix(".json")
+        file_path = f"{stem}.py" if stem else actual_probe_file
 
     timestamp = (
         datetime.datetime.now(datetime.timezone.utc)
@@ -271,12 +282,13 @@ def lookup(
     symbol: str,
     default_branch: str = "main",
     decisions_dir: Optional[pathlib.Path] = None,
+    repo_root: Optional[pathlib.Path] = None,
 ) -> list[dict]:
     """Find earlier approved decision records matching repo + file_path + symbol.
 
-    A decision is considered *approved* when its file is present in a commit
-    reachable from HEAD on *default_branch* — determined by reading the file
-    list from ``git log``, not by the ``status`` field value.
+    A decision is considered *approved* when its file is present in a commit reachable from
+    HEAD on *default_branch* — determined by reading the file from git, not by the ``status``
+    field value.
 
     Parameters
     ----------
@@ -290,45 +302,39 @@ def lookup(
         Branch name to check reachability against. Default ``"main"``.
     decisions_dir:
         Override for the ``.bobreviewer/decisions/`` directory. Used in tests.
+    repo_root:
+        Repository root used to compute repo-relative paths for the reachability check.
+        Pass this explicitly: deriving it from the current directory makes the answer depend
+        on where the process happens to be started, which is how an unmerged decision can be
+        reported as approved.
 
     Returns
     -------
     list[dict]
         Matching approved decision records, oldest first.
     """
+    root = pathlib.Path(repo_root) if repo_root is not None else _git_toplevel()
     if decisions_dir is None:
-        # Walk up from cwd to find .bobreviewer/decisions/
-        decisions_dir = _find_decisions_dir()
+        # Look for .bobreviewer/decisions/ at the repository root, not at the cwd.
+        decisions_dir = root / ".bobreviewer" / "decisions"
 
     if decisions_dir is None or not decisions_dir.exists():
         return []
 
-    # Determine whether to apply reachability filtering.
-    # Per the spec: a decision is approved when its file exists in a commit
-    # reachable from HEAD on the default branch, checked via
-    # ``git show <branch>:<repo-relative-path>``.
-    #
-    # Only apply filtering when decisions_dir is inside the repo (i.e. relative
-    # to cwd is possible). Tests that pass a tmp_path outside the repo skip
-    # filtering so all matching records are returned — this is the correct
-    # test behaviour since tmp files are never in git history anyway.
-    try:
-        decisions_dir.relative_to(pathlib.Path.cwd())
-        _within_repo = True
-    except ValueError:
-        _within_repo = False
-
     results: list[dict] = []
     for json_file in sorted(decisions_dir.glob("*.json")):
-        if _within_repo:
-            # Compute repo-relative path for git show check
-            try:
-                repo_relative = str(json_file.relative_to(pathlib.Path.cwd()))
-            except ValueError:
-                repo_relative = str(json_file)
-            repo_relative_normalised = repo_relative.replace("\\", "/")
-            if not is_file_reachable_on_branch(default_branch, repo_relative_normalised):
-                continue  # not yet merged to default branch → not approved
+        # Only a decision reachable on the default branch counts as approved. A decision
+        # merely present on a feature branch was proposed and never reviewed.
+        try:
+            repo_relative = json_file.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            # Outside the repository (tests use tmp dirs): no git history to check, so the
+            # reachability rule cannot apply and records are returned for rule testing.
+            repo_relative = None
+        if repo_relative is not None and not is_file_reachable_on_branch(
+            default_branch, repo_relative, cwd=root
+        ):
+            continue
 
         try:
             record = json.loads(json_file.read_text(encoding="utf-8"))
@@ -343,6 +349,86 @@ def lookup(
             results.append(record)
 
     return results
+
+
+def load_branch_decisions(
+    default_branch: str = "main",
+    repo_root: Optional[pathlib.Path] = None,
+) -> list[dict]:
+    """Every decision record present on *default_branch*, read from git.
+
+    Approval is a question about history, not about the current checkout: a decision is
+    approved when it is reachable on the default branch, even if the working tree happens to
+    be on a branch that does not contain it. Enumerating the branch's tree (rather than the
+    filesystem) is what makes that true.
+    """
+    root = pathlib.Path(repo_root) if repo_root is not None else _git_toplevel()
+    try:
+        listed = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", default_branch, "--", ".bobreviewer/decisions"],
+            capture_output=True, text=True, timeout=10, cwd=str(root),
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return []
+    if listed.returncode != 0:
+        return []
+
+    records: list[dict] = []
+    for relative in listed.stdout.splitlines():
+        relative = relative.strip()
+        if not relative.endswith(".json"):
+            continue
+        try:
+            blob = subprocess.run(
+                ["git", "show", f"{default_branch}:{relative}"],
+                capture_output=True, text=True, timeout=10, cwd=str(root),
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            continue
+        if blob.returncode != 0:
+            continue
+        try:
+            record = json.loads(blob.stdout)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict) and record.get("symbol"):
+            records.append(record)
+    return records
+
+
+def approved_for_symbols(
+    repo: str,
+    symbols: dict[str, str],
+    default_branch: str = "main",
+    repo_root: Optional[pathlib.Path] = None,
+) -> list[dict]:
+    """Approved decisions for a mapping of ``symbol -> file_path``.
+
+    Uses :func:`load_branch_decisions`, so the answer depends on the default branch's history
+    and never on which branch happens to be checked out. Matches on repository + file_path +
+    symbol, which keeps two same-named functions in different files apart.
+    """
+    wanted = {(path, symbol) for symbol, path in symbols.items()}
+    matched: list[dict] = []
+    for record in load_branch_decisions(default_branch, repo_root):
+        key = (record.get("file_path"), record.get("symbol"))
+        if key in wanted and record.get("repository", repo) == repo:
+            matched.append(record)
+    return matched
+
+
+def _git_toplevel() -> pathlib.Path:
+    """The repository root for the current directory, or cwd when git cannot say."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return pathlib.Path(result.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return pathlib.Path.cwd()
 
 
 def _find_decisions_dir() -> Optional[pathlib.Path]:
@@ -361,12 +447,13 @@ def _find_decisions_dir() -> Optional[pathlib.Path]:
 def is_file_reachable_on_branch(
     default_branch: str,
     repo_relative_file_path: str,
+    cwd: Optional[pathlib.Path] = None,
 ) -> bool:
     """Check whether a specific file path exists in a commit reachable from *default_branch*.
 
-    Uses ``git show <branch>:<path>`` as specified in the project spec.
-    Returns True (approved) or False (not yet merged). Fail-open: returns True
-    when git is unavailable so development is not blocked.
+    Uses ``git show <branch>:<path>``, run in the repository root so the answer does not
+    depend on the caller's working directory. Returns False when the file is not there, which
+    is what keeps an unmerged decision from being reported as approved.
     """
     try:
         result = subprocess.run(
@@ -374,7 +461,8 @@ def is_file_reachable_on_branch(
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=str(cwd) if cwd is not None else None,
         )
         return result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return True  # git not available; fail-open
+        return False

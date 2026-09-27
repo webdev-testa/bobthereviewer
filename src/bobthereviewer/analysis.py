@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import ast
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -470,10 +470,37 @@ def _find_callers_two_hops(
 # Public entry point
 # ---------------------------------------------------------------------------
 
+def is_test_caller(file_path: str, symbol: str, test_root: str = "tests") -> bool:
+    """Whether a caller is part of the project's own test suite.
+
+    Bob should not be asked to author probes for the tests themselves: they are not
+    impacted callers of the change, they are how the change is already checked. Matching is
+    on the configured test folder (any path segment) and on the conventional test prefixes,
+    so `tests/test_discount.py::test_no_discount` and a top-level `test_x.py` both count.
+    """
+    normalised = (file_path or "").replace("\\", "/").strip("/")
+    if not normalised:
+        return False
+
+    root = (test_root or "tests").replace("\\", "/").strip("/")
+    if root and any(segment == root for segment in normalised.split("/")[:-1]):
+        return True
+
+    filename = normalised.rsplit("/", 1)[-1]
+    stem = filename[:-3] if filename.endswith(".py") else filename
+    if stem == "conftest" or stem.startswith("test_") or stem.endswith("_test"):
+        return True
+
+    # A caller symbol carries the test function's own name too (`tests.test_x.test_y`).
+    leaf = (symbol or "").rsplit(".", 1)[-1]
+    return leaf.startswith("test_") or leaf.endswith("_test")
+
+
 def analyze(
     base_worktree: Path,
     head_worktree: Path,
     changed_files: list[str],
+    test_root: str = "tests",
 ) -> AnalysisResult:
     """Perform full impact analysis.
 
@@ -486,6 +513,10 @@ def analyze(
     changed_files:
         Repo-relative paths of files that differ between revisions
         (as returned by WorktreeContext.changed_files).
+    test_root:
+        Folder holding the project's tests, used to mark test callers.
+        Callers belonging to the suite get ``needs_probe=False``: they are
+        how the change is already checked, not uncovered impact.
 
     Returns
     -------
@@ -504,6 +535,11 @@ def analyze(
         )
         # Remove self-references (the changed function calling itself)
         callers = [c for c in callers if c.symbol != fqn]
+        # Callers that are part of the test suite never need a probe.
+        callers = [
+            replace(c, needs_probe=False) if is_test_caller(c.file_path, c.symbol, test_root) else c
+            for c in callers
+        ]
 
         result.changed_functions.append(ChangedFunction(
             symbol=fqn,
