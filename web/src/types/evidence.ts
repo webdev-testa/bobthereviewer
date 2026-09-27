@@ -102,7 +102,7 @@ export interface DecisionRecord {
   repository: string
   file_path: string
   symbol: string
-  case_id: string
+  case_id?: string
   base_commit: string
   head_commit: string
   probe_file: string
@@ -111,7 +111,7 @@ export interface DecisionRecord {
   observed_after: OutputValue
   verdict: 'intended' | 'unintended' | 'unresolved'
   rationale: string
-  status: 'proposed'
+  status: 'proposed' | 'approved'
   timestamp: string
 }
 
@@ -139,5 +139,8 @@ export interface Evidence {
   changed_functions: ChangedFunction[]
   test_results: TestResults
   probe_results: ProbeResult[]
+  /** Decision files in the reviewed branch that match a case of this run (proposed until merged). */
   decisions: DecisionRecord[]
+  /** Approved decisions already on the default branch: prior context, not approval of this change. */
+  prior_decisions?: DecisionRecord[]
 }

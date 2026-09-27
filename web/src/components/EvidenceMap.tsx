@@ -32,7 +32,7 @@ const ROLE_LABEL: Record<MapRole, string> = {
 }
 
 function RoleTag({ role }: { role: MapRole }) {
-  return <span className={cn('text-xs font-medium', role === 'changed' ? 'text-info' : 'text-muted-foreground')}>{ROLE_LABEL[role]}</span>
+  return <span className={cn('truncate text-xs font-medium', role === 'changed' ? 'text-info' : 'text-muted-foreground')}>{ROLE_LABEL[role]}</span>
 }
 
 function EvidenceNodeCard({ data: { entry, ports } }: NodeProps<EvidenceFlowNode>) {
@@ -43,8 +43,8 @@ function EvidenceNodeCard({ data: { entry, ports } }: NodeProps<EvidenceFlowNode
       <span className="truncate text-xs text-muted-foreground">
         {entry.path}{entry.line ? `:${entry.line}` : ''}{entry.isTest ? ' · test' : ''}
       </span>
-      <span className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={entry.status} />
+      <span className="flex min-w-0 items-center gap-2">
+        <StatusBadge status={entry.status} className="shrink-0" />
         <RoleTag role={entry.role} />
       </span>
     </Card>

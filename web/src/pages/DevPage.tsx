@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CircleAlert, Play } from 'lucide-react'
 import { AppHeader } from '@/components/AppHeader'
 import { EvidenceView } from '@/components/EvidenceView'
@@ -7,6 +7,7 @@ import { RunPicker } from '@/components/RunPicker'
 import { SaveDecisionDialog } from '@/components/SaveDecisionDialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { caseKey, DecisionContext } from '@/lib/decision-context'
 import { getRun, listRuns } from '@/lib/local-api'
 import { requestedRunId } from '@/lib/mode'
 import { useTheme } from '@/lib/use-theme'
@@ -22,6 +23,11 @@ export function DevPage() {
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<{ symbol: string; caseId: string; probeFile: string } | null>(null)
+  const [saved, setSaved] = useState<ReadonlySet<string>>(new Set())
+  const decisionActions = useMemo(() => ({
+    save: (symbol: string, caseId: string, probeFile: string) => setDialog({ symbol, caseId, probeFile }),
+    saved,
+  }), [saved])
 
   const refreshRuns = useCallback(() => {
     listRuns().then(setRuns).catch((e: unknown) => setLoadError(message(e, 'Failed to load runs')))
@@ -38,6 +44,7 @@ export function DevPage() {
 
   async function handleSelectRun(id: string) {
     setSelectedRun(id)
+    setSaved(new Set())
     setLoadError(null)
     setEvidence(null)
     try {
@@ -66,10 +73,9 @@ export function DevPage() {
           </Alert>
         )}
         {evidence && (
-          <EvidenceView
-            evidence={evidence}
-            onSaveDecision={(symbol, caseId, probeFile) => setDialog({ symbol, caseId, probeFile })}
-          />
+          <DecisionContext.Provider value={decisionActions}>
+            <EvidenceView evidence={evidence} />
+          </DecisionContext.Provider>
         )}
         {!evidence && !loadError && (
           <Empty className="border">
@@ -94,6 +100,7 @@ export function DevPage() {
           caseId={dialog.caseId}
           probeFile={dialog.probeFile}
           onClose={() => setDialog(null)}
+          onSaved={() => setSaved((s) => new Set(s).add(caseKey(dialog.symbol, dialog.caseId)))}
         />
       )}
     </>

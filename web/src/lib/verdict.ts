@@ -1,4 +1,5 @@
 import type { EvidenceStatus } from '@/components/StatusBadge'
+import { decisionFor } from '@/lib/decision-context'
 import { isTestSymbol } from '@/lib/evidence-map'
 import type { Tone } from '@/lib/tones'
 import type { Evidence } from '@/types/evidence'
@@ -35,7 +36,12 @@ export function reviewVerdict(evidence: Evidence): Verdict {
     return { tone: 'neutral', headline: `Execution skipped: ${evidence.triage.skip_reason ?? 'docs-only change'}.`, counts: nonZero }
   }
   if (differs) {
-    return { tone: 'danger', headline: `Behavior differs in ${differs} ${of}. Your decision is needed.`, counts: nonZero }
+    const undecided = evidence.probe_results.flatMap((p) => p.cases
+      .filter((c) => c.comparison_status === 'differ' && !decisionFor(evidence, p.target, c.id))).length
+    const next = undecided === differs ? 'Your decision is needed.'
+      : undecided ? `${undecided} still need a decision.`
+      : 'Every difference has a decision (proposed until merged).'
+    return { tone: 'danger', headline: `Behavior differs in ${differs} ${of}. ${next}`, counts: nonZero }
   }
   if (!cases.length) {
     return { tone: 'neutral', headline: 'No probes ran, so no behavior was compared.', counts: nonZero }

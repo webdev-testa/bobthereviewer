@@ -3,15 +3,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatusBadge } from '@/components/StatusBadge'
 import { caseStatus } from '@/components/ProbeResultTable'
+import { CaseDecision } from '@/components/DecisionBadge'
+import { caseKey, decisionFor, useDecisionActions } from '@/lib/decision-context'
 import type { Evidence } from '@/types/evidence'
 
-interface Props {
-  evidence: Evidence
-  onSaveDecision?: (target: string, caseId: string, probeFile: string) => void
-}
-
 /** Only the cases a person has to look at: differences to decide on, and cases that couldn't be compared. */
-export function NeedsAttention({ evidence, onSaveDecision }: Props) {
+export function NeedsAttention({ evidence }: { evidence: Evidence }) {
+  const { save, saved } = useDecisionActions()
   const items = evidence.probe_results.flatMap((result) =>
     result.cases.filter((c) => caseStatus(c) !== 'same').map((c) => ({ result, c })),
   )
@@ -38,6 +36,9 @@ export function NeedsAttention({ evidence, onSaveDecision }: Props) {
                   <ArrowRight aria-label="became" className="size-3.5 text-muted-foreground" />
                   <span>{JSON.stringify(c.head_output)}</span>
                 </p>
+                {c.comparison_status === 'differ' ? (
+                  <CaseDecision decision={decisionFor(evidence, result.target, c.id)} saved={saved.has(caseKey(result.target, c.id))} />
+                ) : null}
                 {c.inconclusive_reason ? (
                   <p className="text-xs text-muted-foreground">
                     {c.inconclusive_reason}{c.inconclusive_detail ? `: ${c.inconclusive_detail}` : ''}
@@ -46,8 +47,10 @@ export function NeedsAttention({ evidence, onSaveDecision }: Props) {
               </div>
               <div className="flex items-center gap-2">
                 <StatusBadge status={caseStatus(c)} />
-                {onSaveDecision && c.comparison_status === 'differ' ? (
-                  <Button size="sm" onClick={() => onSaveDecision(result.target, c.id, result.probe_file)}>Save decision</Button>
+                {save && c.comparison_status === 'differ' ? (
+                  <Button size="sm" onClick={() => save(result.target, c.id, result.probe_file)}>
+                    {decisionFor(evidence, result.target, c.id) ? 'Change decision' : 'Save decision'}
+                  </Button>
                 ) : null}
               </div>
             </li>

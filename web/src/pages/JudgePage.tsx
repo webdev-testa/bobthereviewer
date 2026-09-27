@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Eye } from 'lucide-react'
 import { AppHeader } from '@/components/AppHeader'
 import { EvidenceView } from '@/components/EvidenceView'
@@ -6,6 +6,7 @@ import { TONE_CLASSES } from '@/lib/tones'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { evidenceFixture } from '@/fixtures/evidence.fixture'
+import { DecisionContext } from '@/lib/decision-context'
 import { useTheme } from '@/lib/use-theme'
 import type { Evidence } from '@/types/evidence'
 
@@ -18,6 +19,11 @@ const evidence: Evidence =
 export function JudgePage() {
   const themeControl = useTheme()
   const [previewTarget, setPreviewTarget] = useState<string | null>(null)
+  // The static page never writes anything: Save decision only shows the preview notice.
+  const decisionActions = useMemo(() => ({
+    save: (symbol: string, caseId: string) => setPreviewTarget(`${symbol}:${caseId}`),
+    saved: new Set<string>(),
+  }), [])
 
   return (
     <>
@@ -37,10 +43,9 @@ export function JudgePage() {
             </AlertDescription>
           </Alert>
         )}
-        <EvidenceView
-          evidence={evidence}
-          onSaveDecision={(symbol, caseId) => setPreviewTarget(`${symbol}:${caseId}`)}
-        />
+        <DecisionContext.Provider value={decisionActions}>
+          <EvidenceView evidence={evidence} />
+        </DecisionContext.Provider>
       </main>
     </>
   )
