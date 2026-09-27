@@ -354,6 +354,25 @@ def lookup(
     return results
 
 
+def _branch_ref(branch: str, cwd: Optional[pathlib.Path]) -> str:
+    """The ref that names *branch* here: the local branch, else its origin copy.
+
+    CI checks out a pull request without a local ``main``; only ``origin/main`` exists there, so
+    reading ``main:<path>`` found no approved decisions at all.
+    """
+    for ref in (branch, f"origin/{branch}"):
+        try:
+            found = subprocess.run(
+                ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+                capture_output=True, text=True, timeout=10, cwd=str(cwd) if cwd is not None else None,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return branch
+        if found.returncode == 0:
+            return ref
+    return branch
+
+
 def load_branch_decisions(
     default_branch: str = "main",
     repo_root: Optional[pathlib.Path] = None,
@@ -366,9 +385,10 @@ def load_branch_decisions(
     filesystem) is what makes that true.
     """
     root = pathlib.Path(repo_root) if repo_root is not None else _git_toplevel()
+    branch_ref = _branch_ref(default_branch, root)
     try:
         listed = subprocess.run(
-            ["git", "ls-tree", "-r", "--name-only", default_branch, "--", ".bobreviewer/decisions"],
+            ["git", "ls-tree", "-r", "--name-only", branch_ref, "--", ".bobreviewer/decisions"],
             capture_output=True, text=True, timeout=10, cwd=str(root),
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
@@ -383,7 +403,7 @@ def load_branch_decisions(
             continue
         try:
             blob = subprocess.run(
-                ["git", "show", f"{default_branch}:{relative}"],
+                ["git", "show", f"{branch_ref}:{relative}"],
                 capture_output=True, text=True, timeout=10, cwd=str(root),
             )
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
@@ -471,7 +491,7 @@ def is_file_reachable_on_branch(
     """
     try:
         result = subprocess.run(
-            ["git", "show", f"{default_branch}:{repo_relative_file_path}"],
+            ["git", "show", f"{_branch_ref(default_branch, cwd)}:{repo_relative_file_path}"],
             capture_output=True,
             text=True,
             timeout=10,
