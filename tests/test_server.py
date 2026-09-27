@@ -198,6 +198,35 @@ def _decide(run_id: str, verdict: str, rationale: str) -> dict:
             "verdict": verdict, "rationale": rationale}
 
 
+class TestRepoAndRefs:
+    def test_repo_reports_branch_and_default_base(self, git_repo):
+        conn, token, _ = _start_server(git_repo)
+        status, body = _req(conn, "GET", "/api/repo", token=token)
+        assert status == 200
+        assert body == {"repo": "repo", "branch": "main", "base_branch": "main"}
+
+    def test_repo_base_branch_comes_from_config(self, git_repo):
+        (git_repo / ".bobreviewer").mkdir(exist_ok=True)
+        (git_repo / ".bobreviewer" / "config.json").write_text('{"base_branch": "develop"}', encoding="utf-8")
+        conn, token, _ = _start_server(git_repo)
+        _, body = _req(conn, "GET", "/api/repo", token=token)
+        assert body["base_branch"] == "develop"
+
+    def test_refs_lists_branches_and_tags(self, git_repo):
+        conn, token, _ = _start_server(git_repo)
+        status, refs = _req(conn, "GET", "/api/refs", token=token)
+        assert status == 200
+        by_name = {r["name"]: r for r in refs}
+        assert by_name["main"]["kind"] == "branch"
+        assert by_name["base"]["kind"] == "tag" and by_name["head"]["kind"] == "tag"
+        assert all(len(r["sha"]) >= 7 for r in refs)
+
+    def test_repo_and_refs_require_token(self, git_repo):
+        conn, _, _ = _start_server(git_repo)
+        assert _req(conn, "GET", "/api/repo")[0] == 401
+        assert _req(conn, "GET", "/api/refs")[0] == 401
+
+
 class TestDecide:
     def test_save_writes_decision_file(self, tmp_path):
         run_id = _saved_run_with_difference(tmp_path)
