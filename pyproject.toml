@@ -29,7 +29,11 @@ where = ["src", "."]
 include = ["bobthereviewer*", "app*"]
 
 [tool.setuptools.package-data]
-"bobthereviewer" = ["py.typed"]
+"bobthereviewer" = [
+    "py.typed",
+    "frontend/**/*",
+    "frontend/*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

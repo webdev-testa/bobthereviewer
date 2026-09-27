@@ -1,0 +1,78 @@
+/**
+ * Typed fetch wrappers for the Lane 2 local server API.
+ * Source of truth: contracts/local-server-api.md
+ * Only imported in local (developer) mode — never bundled into the judge page.
+ */
+import type { Evidence } from '@/types/evidence'
+import type {
+  RunSummary,
+  StartRunRequest,
+  StartRunResponse,
+  DecideRequest,
+  DecideResponse,
+  ProgressEvent,
+} from '@/types/api'
+import { getToken } from '@/lib/mode'
+
+function authHeaders(): HeadersInit {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { ...init, headers: { ...authHeaders(), ...init?.headers } })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new Error(`API ${path} → ${res.status}: ${text}`)
+  }
+  return res.json() as Promise<T>
+}
+
+export function listRuns(): Promise<RunSummary[]> {
+  return apiFetch<RunSummary[]>('/api/runs')
+}
+
+export function getRun(runId: string): Promise<Evidence> {
+  return apiFetch<Evidence>(`/api/runs/${encodeURIComponent(runId)}`)
+}
+
+export function startRun(body: StartRunRequest): Promise<StartRunResponse> {
+  return apiFetch<StartRunResponse>('/api/runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function postDecide(body: DecideRequest): Promise<DecideResponse> {
+  return apiFetch<DecideResponse>('/api/decide', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function streamProgress(
+  runId: string,
+  onEvent: (e: ProgressEvent) => void,
+  onDone: () => void,
+  onError: (err: Event) => void,
+): EventSource {
+  const token = getToken()
+  const url = `/api/runs/${encodeURIComponent(runId)}/progress${token ? `?token=${encodeURIComponent(token)}` : ''}`
+  const es = new EventSource(url)
+  es.onmessage = (e) => {
+    try {
+      const event = JSON.parse(e.data as string) as ProgressEvent
+      onEvent(event)
+      if (event.step === 'done' || event.step === 'error') {
+        es.close()
+        onDone()
+      }
+    } catch {
+      // ignore malformed events
+    }
+  }
+  es.onerror = (e) => { onError(e); es.close() }
+  return es
+}
