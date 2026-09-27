@@ -2,17 +2,34 @@ import { useState } from 'react'
 import { Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ProgressPanel } from '@/components/ProgressPanel'
-import { startRun, streamProgress } from '@/lib/local-api'
-import type { ProgressEvent } from '@/types/api'
+import { getRepo, listRefs, startRun, streamProgress } from '@/lib/local-api'
+import type { GitRef, ProgressEvent } from '@/types/api'
 
-function RefInput({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
+const REF_GROUPS: [GitRef['kind'], string][] = [['branch', 'Branches'], ['remote', 'Remote branches'], ['tag', 'Tags']]
+
+function RefSelect({ id, label, value, refs, onChange }: {
+  id: string; label: string; value: string; refs: GitRef[]; onChange: (value: string) => void
+}) {
   return (
     <div className="space-y-1">
       <Label htmlFor={id}>{label}</Label>
-      <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} placeholder="branch, tag or commit" />
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} className="w-full"><SelectValue placeholder="Choose a branch or tag" /></SelectTrigger>
+        <SelectContent>
+          {REF_GROUPS.map(([kind, title]) => {
+            const group = refs.filter((r) => r.kind === kind)
+            return group.length ? (
+              <SelectGroup key={kind}>
+                <SelectLabel>{title}</SelectLabel>
+                {group.map((r) => <SelectItem key={`${kind}:${r.name}`} value={r.name}>{r.name} · {r.sha}</SelectItem>)}
+              </SelectGroup>
+            ) : null
+          })}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
@@ -25,6 +42,7 @@ export function NewReviewDialog({ onDone }: { onDone: (runId: string) => void })
   const [finished, setFinished] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
   const [error, setError] = useState<string>()
+  const [refs, setRefs] = useState<GitRef[]>([])
 
   const reset = () => {
     setRunId(null)
@@ -32,6 +50,19 @@ export function NewReviewDialog({ onDone }: { onDone: (runId: string) => void })
     setFinished(false)
     setWarnings([])
     setError(undefined)
+  }
+
+  // Defaults: base = the configured base branch, head = the branch checked out now.
+  const load = async () => {
+    try {
+      const [repo, all] = await Promise.all([getRepo(), listRefs()])
+      setRefs(all)
+      const names = new Set(all.map((r) => r.name))
+      setBefore((current) => current || (names.has(repo.base_branch) ? repo.base_branch : ''))
+      setAfter((current) => current || (repo.branch !== 'HEAD' && names.has(repo.branch) ? repo.branch : ''))
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   const start = async () => {
@@ -52,7 +83,7 @@ export function NewReviewDialog({ onDone }: { onDone: (runId: string) => void })
   }
 
   return (
-    <Dialog onOpenChange={(open) => !open && reset()}>
+    <Dialog onOpenChange={(open) => (open ? void load() : reset())}>
       <DialogTrigger asChild><Button size="sm"><Play aria-hidden="true" />New review</Button></DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -70,8 +101,8 @@ export function NewReviewDialog({ onDone }: { onDone: (runId: string) => void })
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
-            <RefInput id="review-base" label="Base (before)" value={before} onChange={setBefore} />
-            <RefInput id="review-head" label="Head (after)" value={after} onChange={setAfter} />
+            <RefSelect id="review-base" label="Base (before)" value={before} refs={refs} onChange={setBefore} />
+            <RefSelect id="review-head" label="Head (after)" value={after} refs={refs} onChange={setAfter} />
           </div>
         )}
         {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}

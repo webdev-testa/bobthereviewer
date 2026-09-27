@@ -22,6 +22,8 @@ Endpoints:
   GET  /api/runs/{run_id}               → evidence.json for run
   POST /api/runs                        → start a new run (returns {run_id} immediately)
   GET  /api/runs/{run_id}/progress      → SSE progress stream
+  GET  /api/repo                        → repo folder name, current branch, configured base branch
+  GET  /api/refs                        → local branches, remote-tracking branches, tags (name + short SHA)
   POST /api/decide                      → save a proposed decision (same code path as `bobreviewer decide`)
   GET  /                                → serve developer UI frontend
 """
@@ -53,7 +55,7 @@ from bobthereviewer.run_store import (
 from bobthereviewer.decide_cmd import DecideError, decide_from_run
 from bobthereviewer.pipeline import ProbeSpec, run_analysis_pipeline
 from bobthereviewer.progress import make_emitter, replay_events
-from bobthereviewer.snapshots import SnapshotError, find_repo_root, resolve_ref, uncommitted_files
+from bobthereviewer.snapshots import SnapshotError, _git, find_repo_root, resolve_ref, uncommitted_files
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +280,14 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
             self._handle_static_asset(clean)
             return
 
+        if segments == ["api", "repo"]:
+            self._handle_repo()
+            return
+
+        if segments == ["api", "refs"]:
+            self._handle_refs()
+            return
+
         if segments[:1] == ["api"] and segments[1:2] == ["runs"]:
             if len(segments) == 2:
                 self._handle_list_runs()
@@ -322,6 +332,43 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
     # ------------------------------------------------------------------
     # Run list / detail
     # ------------------------------------------------------------------
+
+    def _handle_repo(self) -> None:
+        try:
+            root = find_repo_root(Path(self.repo_dir).resolve())
+            # Not `rev-parse --abbrev-ref HEAD`: a tag or branch named "head" makes HEAD
+            # ambiguous on case-insensitive filesystems, and git then prints nothing.
+            branch = _git(["branch", "--show-current"], cwd=root) or "HEAD"
+        except SnapshotError as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+        config_path = root / ".bobreviewer" / "config.json"
+        try:
+            base_branch = json.loads(config_path.read_text(encoding="utf-8")).get("base_branch", "main")
+        except (OSError, json.JSONDecodeError):
+            base_branch = "main"
+        # A detached HEAD reads as "HEAD"; the UI then leaves the head ref for the user to pick.
+        self._send_json(200, {"repo": root.name, "branch": branch, "base_branch": base_branch})
+
+    def _handle_refs(self) -> None:
+        # Annotated tags point at a tag object; %(*objectname) is the commit it tags.
+        fmt = "%(refname)%09%(if)%(*objectname)%(then)%(*objectname:short)%(else)%(objectname:short)%(end)"
+        try:
+            root = find_repo_root(Path(self.repo_dir).resolve())
+            out = _git(["for-each-ref", f"--format={fmt}", "refs/heads", "refs/remotes", "refs/tags"], cwd=root)
+        except SnapshotError as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
+        kinds = {"refs/heads/": "branch", "refs/remotes/": "remote", "refs/tags/": "tag"}
+        refs = []
+        for line in out.splitlines():
+            refname, _, sha = line.partition("\t")
+            prefix = next(p for p in kinds if refname.startswith(p))
+            name = refname[len(prefix):]
+            if kinds[prefix] == "remote" and name.endswith("/HEAD"):
+                continue
+            refs.append({"name": name, "sha": sha, "kind": kinds[prefix]})
+        self._send_json(200, refs)
 
     def _handle_list_runs(self) -> None:
         runs = list_runs(self.repo_dir)
