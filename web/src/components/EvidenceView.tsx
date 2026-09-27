@@ -3,8 +3,8 @@ import { TriangleAlert } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SummaryCard } from '@/components/SummaryCard'
-import { ProbeResults } from '@/components/ProbeResults'
-import { TestResultTable } from '@/components/TestResultTable'
+import { NeedsAttention } from '@/components/NeedsAttention'
+import { ReviewDetails } from '@/components/ReviewDetails'
 import { DecisionBadge } from '@/components/DecisionBadge'
 import { EvidenceMap } from '@/components/EvidenceMap'
 import type { Evidence } from '@/types/evidence'
@@ -36,19 +36,9 @@ export function EvidenceView({ evidence, onSaveDecision }: Props) {
         </Alert>
       )}
       <SummaryCard evidence={evidence} />
+      <NeedsAttention evidence={evidence} onSaveDecision={onSaveDecision} />
       <EvidenceMap evidence={evidence} />
-
-      <Section title="Probe results">
-        {evidence.probe_results.length === 0
-          ? <p className="text-sm text-muted-foreground">No probes ran, so nothing was executed on both revisions. The map shows which callers need one.</p>
-          : <ProbeResults results={evidence.probe_results} onSaveDecision={onSaveDecision} />}
-      </Section>
-
-      <Section title="Test results">
-        {evidence.triage.skipped
-          ? <p className="text-sm text-warning">Execution skipped — {evidence.triage.skip_reason ?? 'docs-only diff'}</p>
-          : <TestResultTable testResults={evidence.test_results} />}
-      </Section>
+      <ReviewDetails evidence={evidence} onSaveDecision={onSaveDecision} />
 
       {evidence.decisions.length > 0 && (
         <Section title="Prior decisions">
