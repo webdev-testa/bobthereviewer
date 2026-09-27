@@ -31,6 +31,7 @@ include = ["bobthereviewer*"]
 [tool.setuptools.package-data]
 "bobthereviewer" = [
     "py.typed",
+    "schemas/*.json",
     "frontend/**/*",
     "frontend/*",
 ]

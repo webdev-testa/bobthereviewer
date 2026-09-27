@@ -86,12 +86,25 @@ def _print_evidence_summary(evidence: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def cmd_init(args: argparse.Namespace) -> int:
-    from bobthereviewer.setup import init, SetupResult
+    from bobthereviewer.setup import init, detect_config
+    from bobthereviewer.snapshots import find_repo_root
 
     repo_dir = Path(args.repo_dir) if args.repo_dir else Path.cwd()
     try:
-        result = init(repo_dir, update_gitignore=True)
-    except Exception as exc:
+        repo_root = find_repo_root(repo_dir.resolve())
+        config = None
+        if not (repo_root / ".bobreviewer/config.json").exists():
+            config = detect_config(repo_root)
+            print("Detected setup:")
+            for key in ("base_branch", "test_dir", "python_env"):
+                print(f"  {key}: {config[key]}")
+            if sys.stdin.isatty() and not args.yes:
+                for key, label in (("base_branch", "Base branch"),
+                                   ("test_dir", "Test folder"),
+                                   ("python_env", "Python command")):
+                    config[key] = input(f"{label} [{config[key]}]: ").strip() or config[key]
+        result = init(repo_root, update_gitignore=True, config=config)
+    except (Exception, KeyboardInterrupt) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -104,6 +117,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         print("  preserved (existing values kept):")
         for item in result.preserved:
             print(f"    = {item}")
+    print("Next: bobreviewer run, then bobreviewer ui")
     return 0
 
 
@@ -215,6 +229,24 @@ def cmd_run(args: argparse.Namespace) -> int:
             print("Run 'bobreviewer init' first.", file=sys.stderr)
             return 1
 
+    if args.before is None and args.after is None and sys.stdin.isatty():
+        from bobthereviewer.snapshots import _git
+        try:
+            branch = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root)
+            answer = input(f"Compare {branch} with {before_ref}? [Y/n/other] ").strip().lower()
+            if answer == "other":
+                before_ref = input("Compare with ref: ").strip()
+                if not before_ref:
+                    print("error: a comparison ref is required.", file=sys.stderr)
+                    return 1
+            elif answer not in ("", "y", "yes"):
+                return 1
+        except (EOFError, KeyboardInterrupt):
+            return 1
+        except SnapshotError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+
     output_dir = Path(args.output) if args.output else None
     probe_files = list(args.probe) if args.probe else []
     prior_report = Path(args.prior_report) if args.prior_report else None
@@ -318,6 +350,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_init = sub.add_parser("init", help="Set up .bobreviewer/ in the repository")
     p_init.add_argument("--repo-dir", metavar="DIR", default=None,
                         help="Repository directory (default: current directory)")
+    p_init.add_argument("--yes", action="store_true", help="Accept detected defaults without prompting")
 
     # ---- doctor ----
     p_doc = sub.add_parser("doctor", help="Check readiness without installing or running anything")

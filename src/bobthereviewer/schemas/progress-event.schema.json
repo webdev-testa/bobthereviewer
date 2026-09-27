@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "bobreviewer/progress-event",
+  "title": "bobreviewer progress event",
+  "description": "Emitted as newline-delimited JSON to stdout (CLI) and Server-Sent Events (local API)",
+  "type": "object",
+  "required": ["run_id", "step", "status", "message", "timestamp"],
+  "additionalProperties": false,
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "step": {
+      "type": "string",
+      "enum": ["triage", "analyze", "test_base", "test_head", "probe_base", "probe_head", "done", "error"],
+      "description": "Lane 1 owns: triage, analyze, done, error. Lane 2 owns: test_base, test_head, probe_base, probe_head. Any new step requires Lane 1 schema approval."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["started", "completed", "failed"]
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable description of what happened"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

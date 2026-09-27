@@ -7,12 +7,108 @@ CLI integration tests run the CLI via main() with argv lists.
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from bobthereviewer.setup import init, doctor, SetupResult, DoctorResult
 from bobthereviewer.cli import main, build_parser
+
+
+@pytest.mark.parametrize("answers,expected", [
+    (["", "", ""], {"base_branch": "main", "test_dir": "tests", "python_env": ".venv/Scripts/python.exe"}),
+    (["release", "specs", "python3"], {"base_branch": "release", "test_dir": "specs", "python_env": "python3"}),
+])
+def test_interactive_init_defaults_and_overrides(tmp_path, monkeypatch, capsys, answers, expected):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    python = repo / ".venv/Scripts/python.exe"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    replies = iter(answers)
+    prompts = []
+    def answer(prompt):
+        prompts.append(prompt)
+        return next(replies)
+    monkeypatch.setattr("builtins.input", answer)
+    assert main(["init", "--repo-dir", str(repo)]) == 0
+    config = json.loads((repo / ".bobreviewer/config.json").read_text())
+    assert all(config[key] == value for key, value in expected.items())
+    assert len(prompts) == 3
+    assert "[main]" in prompts[0]
+    assert "Detected setup:" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("tty,flags", [(True, ["--yes"]), (False, [])])
+def test_init_without_prompts_and_rerun_keeps_bytes(tmp_path, monkeypatch, capsys, tty, flags):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: tty)
+    monkeypatch.setattr("builtins.input", lambda _: pytest.fail("unexpected prompt"))
+    assert main(["init", "--repo-dir", str(repo), *flags]) == 0
+    path = repo / ".bobreviewer/config.json"
+    config = json.loads(path.read_text())
+    config.pop("test_dir")
+    path.write_text(json.dumps(config, separators=(",", ":")) + "\n")
+    before = {p: p.read_bytes() for p in (path, repo / ".gitignore")}
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    assert main(["init", "--repo-dir", str(repo)]) == 0
+    assert all(p.read_bytes() == data for p, data in before.items())
+    output = capsys.readouterr().out
+    assert "kept" in output
+    assert "Next: bobreviewer run, then bobreviewer ui" in output
+
+
+def test_init_preserves_invalid_config(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    config = repo / ".bobreviewer/config.json"
+    config.parent.mkdir()
+    config.write_text("{broken")
+    assert main(["init", "--yes", "--repo-dir", str(repo)]) == 1
+    assert config.read_text() == "{broken"
+    assert "error:" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("tty,flags,answers,expected_base,exit_code", [
+    (True, [], [""], "main", 0),
+    (True, [], ["n"], None, 1),
+    (True, [], ["other", "base"], "base", 0),
+    (True, [], ["other", ""], None, 1),
+    (True, ["--before", "base", "--after", "HEAD"], [], "base", 0),
+    (True, ["--before", "base"], [], "base", 0),
+    (True, ["--after", "HEAD"], [], "main", 0),
+    (False, [], [], "main", 0),
+])
+def test_run_comparison_prompt(tmp_path, monkeypatch, tty, flags, answers, expected_base, exit_code):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    commit_files(repo, {"mod.py": "def f(): return 1\n"}, "base", tag="base")
+    init(repo)
+    _git(["add", ".bobreviewer/config.json", ".gitignore"], repo)
+    _git(["commit", "-m", "setup"], repo)
+    _git(["checkout", "-b", "pr/tax"], repo)
+    commit_files(repo, {"mod.py": "def f(): return 2\n"}, "head")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: tty)
+    replies = iter(answers)
+    prompts = []
+    def answer(prompt):
+        prompts.append(prompt)
+        return next(replies)
+    monkeypatch.setattr("builtins.input", answer)
+    assert main(["run", "--repo-dir", str(repo), *flags]) == exit_code
+    if answers:
+        assert prompts[0] == "Compare pr/tax with main? [Y/n/other] "
+    else:
+        assert prompts == []
+    reports = list((repo / ".bobreviewer/runs").glob("*/evidence.json"))
+    if exit_code == 0:
+        assert len(reports) == 1
+        assert json.loads(reports[0].read_text())["base_ref"] == expected_base
+    else:
+        assert reports == []
 
 
 # ---------------------------------------------------------------------------
