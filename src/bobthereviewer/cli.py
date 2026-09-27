@@ -50,6 +50,9 @@ def _print_evidence_summary(evidence: dict) -> None:
     print(f"  base     : {evidence['base_ref']}  ({evidence['base_commit'][:12]})")
     print(f"  head     : {evidence['head_ref']}  ({evidence['head_commit'][:12]})")
     print(f"  triage   : {triage.get('category', '?')}")
+    languages = evidence.get("analysis_limits", {}).get("languages")
+    from bobthereviewer.adapters import format_analyzed_as
+    print(f"  Analyzed as: {format_analyzed_as(languages)}")
 
     if triage.get("skipped"):
         print(f"\n  ⚠  Execution skipped: {triage.get('skip_reason', '')}")

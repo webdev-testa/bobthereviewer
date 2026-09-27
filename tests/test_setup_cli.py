@@ -569,3 +569,107 @@ def test_cli_ui_hands_off_to_lane2_server(tmp_path, capsys, monkeypatch):
     code = main(["ui"])
     assert code == 0
     assert "args" in called, "cli did not call server.start"
+
+
+# ---------------------------------------------------------------------------
+# doctor — G5 checks
+# ---------------------------------------------------------------------------
+
+def test_doctor_missing_pytest_in_venv(tmp_path, monkeypatch, capsys):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    commit_files(repo, {"README.md": "hello"}, "initial")
+    init(repo)
+
+    # Create fake .venv
+    py_rel = ".venv/Scripts/python.exe" if sys.platform == "win32" else ".venv/bin/python"
+    fake_py = repo / py_rel
+    fake_py.parent.mkdir(parents=True, exist_ok=True)
+    fake_py.touch()
+
+    # Monkeypatch subprocess.run so pytest invocation fails
+    orig_run = subprocess.run
+    def fake_run(args, **kwargs):
+        if "-m" in args and "pytest" in args:
+            raise subprocess.CalledProcessError(1, args)
+        return orig_run(args, **kwargs)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = doctor(repo)
+    pytest_check = next((c for c in result.checks if c.name == "pytest"), None)
+    assert pytest_check is not None
+    assert pytest_check.status == "missing"
+    assert "pytest is not installed in .venv" in pytest_check.detail
+    assert "install pytest" in pytest_check.detail
+
+    code = main(["doctor", "--repo-dir", str(repo)])
+    assert code == 1
+    err_out = capsys.readouterr().out
+    assert "pytest is not installed in .venv" in err_out
+
+
+def test_doctor_invalid_probe_file(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    commit_files(repo, {"README.md": "hello"}, "initial")
+    init(repo)
+
+    # Write a broken probe file missing "cases"
+    probe_file = repo / ".bobreviewer" / "probes" / "broken.json"
+    probe_file.write_text(json.dumps({
+        "schema_version": "1",
+        "target": "discount.apply_discount",
+    }), encoding="utf-8")
+
+    result = doctor(repo)
+    probe_check = next((c for c in result.checks if c.name == "probes"), None)
+    assert probe_check is not None
+    assert probe_check.status == "missing"
+    assert "broken.json" in probe_check.detail
+    assert "'cases' is required" in probe_check.detail
+
+    code = main(["doctor", "--repo-dir", str(repo)])
+    assert code == 1
+    out = capsys.readouterr().out
+    assert "broken.json: 'cases' is required" in out
+
+
+def test_doctor_gitignore_check(tmp_path):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    commit_files(repo, {"README.md": "hello"}, "initial")
+    init(repo)
+
+    # With .bobreviewer/runs/ in .gitignore
+    result = doctor(repo)
+    gi_check = next((c for c in result.checks if c.name == "gitignore"), None)
+    assert gi_check is not None
+    assert gi_check.status == "ok"
+
+    # Remove run entry
+    (repo / ".gitignore").write_text("# empty\n", encoding="utf-8")
+    result2 = doctor(repo)
+    gi_check2 = next((c for c in result2.checks if c.name == "gitignore"), None)
+    assert gi_check2 is not None
+    assert gi_check2.status == "warning"
+
+
+def test_doctor_web_bundle_check(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    commit_files(repo, {"README.md": "hello"}, "initial")
+    init(repo)
+
+    # In repo, web bundle exists
+    result = doctor(repo)
+    bundle_check = next((c for c in result.checks if c.name == "web_bundle"), None)
+    assert bundle_check is not None
+    assert bundle_check.status == "ok"
+
+    # When bundle is missing
+    monkeypatch.setattr(Path, "is_file", lambda self: False if "frontend" in str(self) else True)
+    result_missing = doctor(repo)
+    bundle_missing = next((c for c in result_missing.checks if c.name == "web_bundle"), None)
+    assert bundle_missing is not None
+    assert bundle_missing.status == "missing"
+

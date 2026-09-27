@@ -255,35 +255,13 @@ def doctor(repo_dir: Path) -> DoctorResult:
         _add("repository", "missing", str(e))
         return result  # can't check anything else without a repo
 
-    # ---- Python ----
-    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    if sys.version_info >= (3, 11):
-        _add("python", "ok", f"Python {py_ver}")
-    else:
-        _add("python", "warning", f"Python {py_ver} found; 3.11+ required")
-
-    # ---- pytest ----
-    pytest_path = shutil.which("pytest")
-    if pytest_path:
-        _add("pytest", "ok", pytest_path)
-    else:
-        # Try via python -m pytest
-        try:
-            subprocess.run(
-                [sys.executable, "-m", "pytest", "--version"],
-                capture_output=True, check=True,
-            )
-            _add("pytest", "ok", "available as python -m pytest")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            _add("pytest", "missing",
-                 "pytest not found — install with: pip install pytest")
-
     # ---- Config ----
     config_path = repo_root / ".bobreviewer" / "config.json"
+    config_data: dict | None = None
     if config_path.exists():
         try:
-            data = json.loads(config_path.read_text(encoding="utf-8"))
-            validate_config(data)
+            config_data = json.loads(config_path.read_text(encoding="utf-8"))
+            validate_config(config_data)
             _add("config", "ok", str(config_path.relative_to(repo_root)))
         except (json.JSONDecodeError, ContractError) as e:
             _add("config", "warning",
@@ -293,14 +271,97 @@ def doctor(repo_dir: Path) -> DoctorResult:
         _add("config", "missing",
              "No .bobreviewer/config.json — run 'bobreviewer init' first")
 
-    # ---- Probe directory ----
+    # ---- Python ----
+    from bobthereviewer.executor import resolve_interpreter
+
+    python_exe, py_display, fallback_note = resolve_interpreter(config_data, repo_root)
+    if Path(python_exe).exists():
+        if fallback_note:
+            _add("python", "ok", f"{py_display} ({fallback_note})")
+        else:
+            _add("python", "ok", py_display)
+    else:
+        _add("python", "missing", f"interpreter not found: {py_display}")
+
+    # ---- pytest ----
+    try:
+        proc = subprocess.run(
+            [python_exe, "-m", "pytest", "--version"],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode == 0:
+            ver = (proc.stdout or proc.stderr or "").strip().splitlines()[0]
+            _add("pytest", "ok", ver)
+        else:
+            raise subprocess.CalledProcessError(proc.returncode, [python_exe, "-m", "pytest"])
+    except Exception:
+        env_disp = py_display
+        for venv_name in (".venv", "venv"):
+            if venv_name in Path(py_display).parts:
+                env_disp = venv_name
+                break
+        pip_name = "pip.exe" if sys.platform == "win32" else "pip"
+        candidate_pip = Path(python_exe).parent / pip_name
+        if candidate_pip.exists():
+            try:
+                pip_cmd = str(candidate_pip.relative_to(repo_root))
+            except ValueError:
+                pip_cmd = str(candidate_pip)
+        else:
+            sep = "\\" if sys.platform == "win32" else "/"
+            pip_cmd = f"{env_disp}{sep}Scripts{sep}pip" if sys.platform == "win32" else f"{env_disp}/bin/pip"
+        _add("pytest", "missing", f"pytest is not installed in {env_disp} — run {pip_cmd} install pytest")
+
+    # ---- .gitignore ----
+    gitignore_path = repo_root / ".gitignore"
+    if gitignore_path.exists():
+        gi_content = gitignore_path.read_text(encoding="utf-8")
+        if ".bobreviewer/runs/" in gi_content or ".bobreviewer/runs" in gi_content:
+            _add("gitignore", "ok", ".bobreviewer/runs/ is ignored")
+        else:
+            _add("gitignore", "warning", ".bobreviewer/runs/ is not in .gitignore — run 'bobreviewer init' to add it")
+    else:
+        _add("gitignore", "warning", ".gitignore does not exist — run 'bobreviewer init' to create it")
+
+    # ---- Probe directory and files ----
     probe_dir = repo_root / ".bobreviewer" / "probes"
     if probe_dir.exists():
-        probe_files = list(probe_dir.glob("*.json"))
-        _add("probes", "ok",
-             f"{len(probe_files)} probe file(s) in {probe_dir.relative_to(repo_root)}")
+        probe_files = sorted(list(probe_dir.glob("*.json")))
+        if not probe_files:
+            _add("probes", "ok", f"0 probe file(s) in {probe_dir.relative_to(repo_root)}")
+        else:
+            from bobthereviewer.contracts import validate_probe
+
+            invalid_probes = []
+            for pf in probe_files:
+                rel_pf = pf.relative_to(repo_root)
+                try:
+                    pdata = json.loads(pf.read_text(encoding="utf-8"))
+                    validate_probe(pdata)
+                except Exception as e:
+                    err_msg = str(e)
+                    if "\n" in err_msg:
+                        last_line = err_msg.strip().splitlines()[-1].strip()
+                        if last_line.startswith("[<root>] "):
+                            err_msg = last_line[len("[<root>] "):]
+                        elif "]" in last_line:
+                            err_msg = last_line.split("]", 1)[1].strip()
+                    err_msg = err_msg.replace("is a required property", "is required")
+                    invalid_probes.append(f"{rel_pf}: {err_msg}")
+            if invalid_probes:
+                for inv in invalid_probes:
+                    _add("probes", "missing", inv)
+            else:
+                _add("probes", "ok", f"{len(probe_files)} probe file(s) valid in {probe_dir.relative_to(repo_root)}")
     else:
-        _add("probes", "warning",
-             "No .bobreviewer/probes/ directory — create probes or run 'bobreviewer init'")
+        _add("probes", "warning", "No .bobreviewer/probes/ directory — create probes or run 'bobreviewer init'")
+
+    # ---- Web bundle ----
+    bundle_path = Path(__file__).resolve().parent / "frontend" / "index.html"
+    if bundle_path.is_file():
+        _add("web_bundle", "ok", "packaged web bundle present")
+    else:
+        _add("web_bundle", "missing", "packaged web bundle missing (build with npm run build in web/)")
 
     return result
