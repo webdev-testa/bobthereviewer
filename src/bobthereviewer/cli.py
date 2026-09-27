@@ -93,6 +93,9 @@ def cmd_init(args: argparse.Namespace) -> int:
     try:
         repo_root = find_repo_root(repo_dir.resolve())
         config = None
+        install_bob = True
+        install_action = True
+
         if not (repo_root / ".bobreviewer/config.json").exists():
             config = detect_config(repo_root)
             print("Detected setup:")
@@ -103,7 +106,17 @@ def cmd_init(args: argparse.Namespace) -> int:
                                    ("test_dir", "Test folder"),
                                    ("python_env", "Python command")):
                     config[key] = input(f"{label} [{config[key]}]: ").strip() or config[key]
-        result = init(repo_root, update_gitignore=True, config=config)
+                ans_bob = input("Install Bob mode [Y/n]: ").strip().lower()
+                install_bob = ans_bob in ("", "y", "yes")
+                ans_act = input("Install GitHub Action [Y/n]: ").strip().lower()
+                install_action = ans_act in ("", "y", "yes")
+        result = init(
+            repo_root,
+            update_gitignore=True,
+            config=config,
+            install_bob_mode=install_bob,
+            install_github_action=install_action,
+        )
     except (Exception, KeyboardInterrupt) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -117,6 +130,11 @@ def cmd_init(args: argparse.Namespace) -> int:
         print("  preserved (existing values kept):")
         for item in result.preserved:
             print(f"    = {item}")
+    snippet_file = repo_root / ".bobreviewer" / "bob-mode.yaml"
+    if snippet_file.exists():
+        bob_modes = repo_root / ".bob" / "custom_modes.yaml"
+        if bob_modes.exists() and "slug: behavior-review" not in bob_modes.read_text(encoding="utf-8"):
+            print("  note: paste .bobreviewer/bob-mode.yaml into .bob/custom_modes.yaml")
     print("Next: bobreviewer run, then bobreviewer ui")
     return 0
 

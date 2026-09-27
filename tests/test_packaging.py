@@ -18,5 +18,7 @@ def test_wheel_contains_canonical_schemas_and_frontend(tmp_path):
     with zipfile.ZipFile(next(tmp_path.glob("bobthereviewer-*.whl"))) as wheel:
         assert "bobthereviewer/frontend/index.html" in wheel.namelist()
         assert any(name.startswith("bobthereviewer/frontend/assets/") for name in wheel.namelist())
+        assert "bobthereviewer/templates/custom_modes.yaml" in wheel.namelist()
+        assert "bobthereviewer/templates/bobreviewer.yml" in wheel.namelist()
         for name, data in canonical.items():
             assert wheel.read(f"bobthereviewer/schemas/{name}") == data

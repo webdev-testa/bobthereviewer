@@ -32,6 +32,7 @@ include = ["bobthereviewer*"]
     "schemas/*.json",
     "frontend/**/*",
     "frontend/*",
+    "templates/*",
 ]
 
 [tool.pytest.ini_options]

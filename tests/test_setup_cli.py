@@ -17,8 +17,8 @@ from bobthereviewer.cli import main, build_parser
 
 
 @pytest.mark.parametrize("answers,expected", [
-    (["", "", ""], {"base_branch": "main", "test_dir": "tests", "python_env": ".venv/Scripts/python.exe"}),
-    (["release", "specs", "python3"], {"base_branch": "release", "test_dir": "specs", "python_env": "python3"}),
+    (["", "", "", "", ""], {"base_branch": "main", "test_dir": "tests", "python_env": ".venv/Scripts/python.exe"}),
+    (["release", "specs", "python3", "y", "y"], {"base_branch": "release", "test_dir": "specs", "python_env": "python3"}),
 ])
 def test_interactive_init_defaults_and_overrides(tmp_path, monkeypatch, capsys, answers, expected):
     repo = tmp_path / "repo"
@@ -36,9 +36,55 @@ def test_interactive_init_defaults_and_overrides(tmp_path, monkeypatch, capsys, 
     assert main(["init", "--repo-dir", str(repo)]) == 0
     config = json.loads((repo / ".bobreviewer/config.json").read_text())
     assert all(config[key] == value for key, value in expected.items())
-    assert len(prompts) == 3
+    assert len(prompts) == 5
     assert "[main]" in prompts[0]
+    assert "[tests]" in prompts[1]
+    assert "Install Bob mode [Y/n]:" in prompts[3]
+    assert "Install GitHub Action [Y/n]:" in prompts[4]
+    assert (repo / ".bob/custom_modes.yaml").exists()
+    assert (repo / ".github/workflows/bobreviewer.yml").exists()
     assert "Detected setup:" in capsys.readouterr().out
+
+
+def test_interactive_init_declines_bob_and_action(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    answers = iter(["", "", "", "n", "n"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    assert main(["init", "--repo-dir", str(repo)]) == 0
+    assert not (repo / ".bob/custom_modes.yaml").exists()
+    assert not (repo / ".github/workflows/bobreviewer.yml").exists()
+
+
+def test_init_existing_modes_file_without_slug_creates_snippet(tmp_path, capsys):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    modes_file = repo / ".bob" / "custom_modes.yaml"
+    modes_file.parent.mkdir(parents=True)
+    custom_content = "customModes:\n  - slug: other-mode\n    name: Other\n"
+    modes_file.write_text(custom_content, encoding="utf-8")
+
+    assert main(["init", "--yes", "--repo-dir", str(repo)]) == 0
+    assert modes_file.read_text(encoding="utf-8") == custom_content
+    snippet_file = repo / ".bobreviewer" / "bob-mode.yaml"
+    assert snippet_file.exists()
+    assert "slug: behavior-review" in snippet_file.read_text(encoding="utf-8")
+    out = capsys.readouterr().out
+    assert "paste .bobreviewer/bob-mode.yaml into .bob/custom_modes.yaml" in out
+
+
+def test_init_existing_modes_file_with_slug_preserves(tmp_path):
+    repo = tmp_path / "repo"
+    init_repo(repo)
+    modes_file = repo / ".bob" / "custom_modes.yaml"
+    modes_file.parent.mkdir(parents=True)
+    content = "customModes:\n  - slug: behavior-review\n    name: Review\n"
+    modes_file.write_text(content, encoding="utf-8")
+
+    assert main(["init", "--yes", "--repo-dir", str(repo)]) == 0
+    assert modes_file.read_text(encoding="utf-8") == content
+    assert not (repo / ".bobreviewer" / "bob-mode.yaml").exists()
 
 
 @pytest.mark.parametrize("tty,flags", [(True, ["--yes"]), (False, [])])
