@@ -1,0 +1,18 @@
+[
+  {
+    "id": "pr-1-before-fix",
+    "pr": 1,
+    "title": "PR #1 – rounding (before fix)",
+    "label": "PR #1 – rounding (before fix)",
+    "pr_url": "https://github.com/webdev-testa/bobthereviewer-demo/pull/1",
+    "run_url": "https://github.com/webdev-testa/bobthereviewer-demo/actions/runs/1"
+  },
+  {
+    "id": "pr-1",
+    "pr": 1,
+    "title": "PR #1 – fix rounding calculation",
+    "label": "PR #1",
+    "pr_url": "https://github.com/webdev-testa/bobthereviewer-demo/pull/1",
+    "run_url": "https://github.com/webdev-testa/bobthereviewer-demo/actions/runs/2"
+  }
+]
