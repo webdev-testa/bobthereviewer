@@ -157,6 +157,57 @@ class TestSecurityLayer:
 
 
 # ---------------------------------------------------------------------------
+# D3 — Save decision writes straight into the repo
+# ---------------------------------------------------------------------------
+
+def _saved_run_with_difference(repo: Path) -> str:
+    run_id = str(uuid.uuid4())
+    save_evidence(create_run_dir(str(repo), run_id), {
+        "schema_version": "1", "run_id": run_id, "generated_at": "2026-01-01T00:00:00Z",
+        "repository": "https://github.com/example/demo", "base_ref": "main", "head_ref": "feature",
+        "base_commit": "a" * 40, "head_commit": "b" * 40,
+        "probe_results": [{
+            "probe_file": ".bobreviewer/probes/invoice_basic.json", "probe_hash": "c" * 64,
+            "target": "invoice.calculate_invoice",
+            "cases": [{"id": "invoice-small-discount", "args": [100.0], "kwargs": {},
+                       "base_output": 100.0, "head_output": 99.99, "comparison_status": "differ"}],
+        }],
+    })
+    return run_id
+
+
+def _decide(run_id: str, verdict: str, rationale: str) -> dict:
+    return {"run_id": run_id, "symbol": "invoice.calculate_invoice", "case_id": "invoice-small-discount",
+            "verdict": verdict, "rationale": rationale}
+
+
+class TestDecide:
+    def test_save_writes_decision_file(self, tmp_path):
+        run_id = _saved_run_with_difference(tmp_path)
+        conn, token, _ = _start_server(tmp_path)
+        status, body = _req(conn, "POST", "/api/decide", token=token,
+                            body=_decide(run_id, "unintended", "Invoices must round to cents"))
+        assert status == 200, body
+        assert body["file_path"].startswith(".bobreviewer/decisions/")
+        assert (tmp_path / body["file_path"]).exists()
+        assert body["git_command"].startswith(f"git add {body['file_path']} ")
+
+    def test_intended_without_rationale_is_rejected(self, tmp_path):
+        run_id = _saved_run_with_difference(tmp_path)
+        conn, token, _ = _start_server(tmp_path)
+        status, body = _req(conn, "POST", "/api/decide", token=token, body=_decide(run_id, "intended", ""))
+        assert status == 422
+        assert "rationale" in body["error"]
+        assert not (tmp_path / ".bobreviewer" / "decisions").exists()
+
+    def test_unknown_run_is_404(self, tmp_path):
+        conn, token, _ = _start_server(tmp_path)
+        status, _ = _req(conn, "POST", "/api/decide", token=token,
+                         body=_decide(str(uuid.uuid4()), "unintended", "Invoices must round to cents"))
+        assert status == 404
+
+
+# ---------------------------------------------------------------------------
 # ST 13 — Run list and detail
 # ---------------------------------------------------------------------------
 
