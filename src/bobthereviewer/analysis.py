@@ -248,6 +248,23 @@ def _local_function_names(tree: ast.Module) -> set[str]:
 # Changed-function detection
 # ---------------------------------------------------------------------------
 
+def _module_constants(tree: ast.Module | None) -> dict[str, ast.AST]:
+    """Top-level `NAME = value` / `NAME: T = value` assignments, by name."""
+    constants: dict[str, ast.AST] = {}
+    for stmt in tree.body if tree else []:
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    constants[target.id] = stmt.value
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.value is not None:
+            constants[stmt.target.id] = stmt.value
+    return constants
+
+
+def _reads_any(func: ast.AST, names: set[str]) -> bool:
+    return any(isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load) and n.id in names for n in ast.walk(func))
+
+
 def _find_changed_symbols(
     base_path: Path,
     head_path: Path,
@@ -288,6 +305,22 @@ def _find_changed_symbols(
                 changed.append((fqn, rel_path))   # removed function
             elif not _ast_equal(base_funcs[name], head_funcs[name]):
                 changed.append((fqn, rel_path))   # modified function
+
+        # A changed module constant (e.g. TAX_RATE) changes every function in the module that
+        # reads it, even though their own code is identical. Other modules' reads are not traced.
+        base_consts = _module_constants(base_tree)
+        head_consts = _module_constants(head_tree)
+        changed_consts = {
+            name for name in set(base_consts) | set(head_consts)
+            if name not in base_consts or name not in head_consts
+            or not _ast_equal(base_consts[name], head_consts[name])
+        }
+        if changed_consts:
+            already = {fqn for fqn, _ in changed}
+            for name, func in head_funcs.items():
+                fqn = f"{module_name}.{name}"
+                if fqn not in already and _reads_any(func, changed_consts):
+                    changed.append((fqn, rel_path))   # reads a changed constant
 
     return changed
 
