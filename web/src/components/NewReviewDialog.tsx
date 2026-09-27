@@ -23,20 +23,23 @@ export function NewReviewDialog({ onDone }: { onDone: (runId: string) => void })
   const [runId, setRunId] = useState<string | null>(null)
   const [events, setEvents] = useState<ProgressEvent[]>([])
   const [finished, setFinished] = useState(false)
+  const [warnings, setWarnings] = useState<string[]>([])
   const [error, setError] = useState<string>()
 
   const reset = () => {
     setRunId(null)
     setEvents([])
     setFinished(false)
+    setWarnings([])
     setError(undefined)
   }
 
   const start = async () => {
     try {
       setError(undefined)
-      const { run_id } = await startRun({ before_ref: before.trim(), after_ref: after.trim(), probes: [] })
+      const { run_id, warnings } = await startRun({ before_ref: before.trim(), after_ref: after.trim(), probes: [] })
       setRunId(run_id)
+      setWarnings(warnings)
       streamProgress(
         run_id,
         (event) => setEvents((all) => [...all, event]),
@@ -57,7 +60,14 @@ export function NewReviewDialog({ onDone }: { onDone: (runId: string) => void })
           <DialogDescription>Runs this repository's tests and probes on this computer, on both revisions.</DialogDescription>
         </DialogHeader>
         {runId ? (
-          <ProgressPanel events={events} />
+          <div className="space-y-3">
+            {warnings.length ? (
+              <ul className="space-y-1 rounded-md border border-warning/40 bg-warning-muted px-3 py-2 text-xs text-warning">
+                {warnings.map((w) => <li key={w}>{w}</li>)}
+              </ul>
+            ) : null}
+            <ProgressPanel events={events} />
+          </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <RefInput id="review-base" label="Base (before)" value={before} onChange={setBefore} />

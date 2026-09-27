@@ -20,6 +20,8 @@ export interface StartRunRequest {
 
 export interface StartRunResponse {
   run_id: string
+  /** Uncommitted files the review leaves out; a web run is never refused for them. */
+  warnings: string[]
 }
 
 export interface DecideRequest {
