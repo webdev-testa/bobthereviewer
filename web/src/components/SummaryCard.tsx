@@ -42,9 +42,14 @@ function formatTime(iso: string) {
 /** "https://github.com/owner/repo" → "owner/repo"; anything else is shown as is. */
 const repoName = (repository: string) => repository.replace(/^https?:\/\/[^/]+\//, '').replace(/\.git$/, '')
 
+// The GitHub Action reviews exact commits, so its refs are full 40-character SHAs.
+const isSha = (ref: string) => /^[0-9a-f]{40}$/i.test(ref)
+const shortRef = (ref: string) => (isSha(ref) ? ref.slice(0, 7) : ref)
+
 export function SummaryCard({ evidence }: { evidence: Evidence }) {
   const verdict = reviewVerdict(evidence)
   const Icon = VERDICT_ICON[verdict.tone]
+  const refsAreCommits = isSha(evidence.base_ref) && isSha(evidence.head_ref)
   return (
     <Card>
       <CardHeader className="gap-2">
@@ -52,13 +57,16 @@ export function SummaryCard({ evidence }: { evidence: Evidence }) {
           Behavior review · {repoName(evidence.repository)} · <time dateTime={evidence.generated_at}>{formatTime(evidence.generated_at)}</time>
         </p>
         <h1 className="flex flex-wrap items-center gap-x-2 text-2xl font-semibold tracking-tight break-all">
-          <code>{evidence.base_ref}</code>
+          <code>{shortRef(evidence.base_ref)}</code>
           <span aria-hidden="true" className="text-muted-foreground">→</span>
-          <code>{evidence.head_ref}</code>
+          <code>{shortRef(evidence.head_ref)}</code>
         </h1>
-        <p className="text-xs text-muted-foreground">
-          <code>{evidence.base_commit.slice(0, 7)}</code> → <code>{evidence.head_commit.slice(0, 7)}</code>
-        </p>
+        {/* Commit ids only add something when the title shows branch or tag names. */}
+        {refsAreCommits ? null : (
+          <p className="text-xs text-muted-foreground">
+            <code>{evidence.base_commit.slice(0, 7)}</code> → <code>{evidence.head_commit.slice(0, 7)}</code>
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         <div role="status" className={cn('flex items-start gap-2 rounded-md border px-3 py-2 font-medium', TONE_CLASSES[verdict.tone])}>
