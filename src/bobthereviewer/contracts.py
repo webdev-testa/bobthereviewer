@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
+from importlib.resources import files
 from typing import Any
 
 try:
@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover
 # Paths
 # ---------------------------------------------------------------------------
 
-_CONTRACTS_DIR = Path(__file__).parent.parent.parent / "contracts"
+_CONTRACTS_DIR = files("bobthereviewer").joinpath("schemas")
 
 _SCHEMA_FILES = {
     "config":          _CONTRACTS_DIR / "config.schema.json",

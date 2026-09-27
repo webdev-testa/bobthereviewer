@@ -1,0 +1,387 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "bobreviewer/evidence",
+  "title": "bobreviewer evidence bundle",
+  "description": "Single source of truth written to .bobreviewer/runs/<run_id>/evidence.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "generated_at",
+    "repository",
+    "base_ref",
+    "head_ref",
+    "base_commit",
+    "head_commit",
+    "triage",
+    "analysis_limits",
+    "changed_functions",
+    "test_results",
+    "probe_results",
+    "decisions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID generated once per review and shared across analysis, execution, and any stored run"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "repository": {
+      "type": "string",
+      "description": "Remote origin URL of the repository"
+    },
+    "base_ref": {
+      "type": "string",
+      "description": "The ref string supplied as --before"
+    },
+    "head_ref": {
+      "type": "string",
+      "description": "The ref string supplied as --after"
+    },
+    "base_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character SHA resolved from base_ref"
+    },
+    "head_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-character SHA resolved from head_ref"
+    },
+    "prior_run_id": {
+      "type": ["string", "null"],
+      "description": "run_id of the earlier evidence bundle supplied via --prior-report; null when absent"
+    },
+    "ci_run_url": {
+      "type": ["string", "null"],
+      "description": "URL of the CI run that produced this evidence; null when run locally"
+    },
+    "frozen_suite_hash": {
+      "type": ["string", "null"],
+      "description": "SHA-256 hex of sorted frozen test file paths and contents; null for analysis-only runs"
+    },
+    "fixture": {
+      "type": "boolean",
+      "description": "When true, this evidence bundle is illustrative/test data and must never be treated as real execution evidence"
+    },
+    "triage": {
+      "type": "object",
+      "required": ["category", "skipped"],
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": ["docs-only", "tests-only", "config-deps", "no-semantic-change", "code"]
+        },
+        "skipped": {
+          "type": "boolean",
+          "description": "True when execution was skipped due to triage; always false for analysis-only runs (which never attempted execution)"
+        },
+        "skip_reason": {
+          "type": ["string", "null"],
+          "description": "Human-readable explanation of why execution was skipped"
+        }
+      }
+    },
+    "analysis_limits": {
+      "type": "object",
+      "required": ["max_hops"],
+      "additionalProperties": false,
+      "properties": {
+        "max_hops": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Human-readable caveats about incomplete analysis"
+        }
+      }
+    },
+    "changed_functions": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/changed_function" }
+    },
+    "test_results": {
+      "type": "object",
+      "description": "Null for analysis-only runs; populated by executor",
+      "required": ["base", "head"],
+      "additionalProperties": false,
+      "properties": {
+        "base": { "$ref": "#/definitions/test_side_results" },
+        "head": { "$ref": "#/definitions/test_side_results" }
+      },
+      "nullable": true
+    },
+    "probe_results": {
+      "type": "array",
+      "description": "Empty for analysis-only runs; populated by executor",
+      "items": { "$ref": "#/definitions/probe_result" }
+    },
+    "decisions": {
+      "type": "array",
+      "description": "Decision records loaded from .bobreviewer/decisions/ at run time; may be empty",
+      "items": { "$ref": "#/definitions/decision_summary" }
+    }
+  },
+  "definitions": {
+    "changed_function": {
+      "type": "object",
+      "required": ["symbol", "file_path", "callers", "unknown_references"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "description": "Fully-qualified dotted name"
+        },
+        "file_path": {
+          "type": "string",
+          "description": "Repo-relative path — never an absolute filesystem path"
+        },
+        "callers": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/caller" }
+        },
+        "unknown_references": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/unknown_reference" }
+        }
+      }
+    },
+    "caller": {
+      "type": "object",
+      "required": ["symbol", "file_path", "line", "in_diff", "resolution", "needs_probe"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "type": "string" },
+        "file_path": {
+          "type": "string",
+          "description": "Repo-relative path — never an absolute filesystem path"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "in_diff": {
+          "type": "boolean",
+          "description": "True when this caller's file was part of the diff"
+        },
+        "resolution": {
+          "type": "string",
+          "enum": ["resolved"]
+        },
+        "needs_probe": {
+          "type": "boolean",
+          "description": "True when no existing probe covers this caller"
+        },
+        "via": {
+          "type": ["array", "null"],
+          "description": "Intermediate edges for two-hop paths; null or empty for direct calls",
+          "items": {
+            "type": "object",
+            "required": ["symbol", "file_path", "line"],
+            "additionalProperties": false,
+            "properties": {
+              "symbol": { "type": "string" },
+              "file_path": { "type": "string" },
+              "line": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "unknown_reference": {
+      "type": "object",
+      "required": ["file_path", "line", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "file_path": {
+          "type": "string",
+          "description": "Repo-relative path — never an absolute filesystem path"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable explanation of why the reference could not be resolved"
+        }
+      }
+    },
+    "test_side_results": {
+      "type": "object",
+      "description": "Map from pytest node ID to result; may be empty for analysis-only runs",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status"],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "error"]
+          },
+          "message": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+    "probe_result": {
+      "type": "object",
+      "required": ["probe_file", "probe_hash", "target", "prior_difference_run_id", "cases"],
+      "additionalProperties": false,
+      "properties": {
+        "probe_file": {
+          "type": "string",
+          "description": "Repo-relative path to the probe JSON file"
+        },
+        "probe_hash": {
+          "type": "string",
+          "description": "SHA-256 hex of the probe file bytes used on both sides"
+        },
+        "target": {
+          "type": "string",
+          "description": "Fully-qualified dotted name of the probed function"
+        },
+        "prior_difference_run_id": {
+          "type": ["string", "null"],
+          "description": "run_id of an earlier run where this probe produced a differ result; enables fix-loop linking"
+        },
+        "cases": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/probe_case_result" }
+        }
+      }
+    },
+    "probe_case_result": {
+      "type": "object",
+      "required": [
+        "id",
+        "args",
+        "kwargs",
+        "base_output",
+        "head_output",
+        "execution_status",
+        "comparison_status",
+        "base_executed_at",
+        "head_executed_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable case identifier matching the probe file"
+        },
+        "args": { "type": "array" },
+        "kwargs": { "type": "object" },
+        "base_output": {
+          "description": "Return value (any JSON value) or exception record from the base revision; null when execution did not complete",
+          "oneOf": [
+            { "type": ["string", "number", "boolean", "null", "array", "object"] },
+            { "$ref": "#/definitions/exception_record" }
+          ]
+        },
+        "head_output": {
+          "description": "Return value (any JSON value) or exception record from the head revision; null when execution did not complete",
+          "oneOf": [
+            { "type": ["string", "number", "boolean", "null", "array", "object"] },
+            { "$ref": "#/definitions/exception_record" }
+          ]
+        },
+        "execution_status": {
+          "type": "string",
+          "enum": ["success", "exception", "inconclusive"],
+          "description": "Whether the probe ran to completion: success=returned a value, exception=target raised, inconclusive=could not execute"
+        },
+        "comparison_status": {
+          "type": ["string", "null"],
+          "enum": ["match", "differ", "inconclusive", null],
+          "description": "Comparison of base vs head outputs; null when execution_status is inconclusive on either side"
+        },
+        "inconclusive_reason": {
+          "type": ["string", "null"],
+          "description": "Machine-readable reason string when execution_status is inconclusive"
+        },
+        "inconclusive_detail": {
+          "type": ["string", "null"],
+          "description": "Verbatim error message or traceback when inconclusive"
+        },
+        "base_executed_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "head_executed_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      }
+    },
+    "exception_record": {
+      "type": "object",
+      "required": ["exception", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "exception": {
+          "type": "string",
+          "description": "Exception type name, e.g. ValueError"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "decision_summary": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "run_id",
+        "repository",
+        "file_path",
+        "symbol",
+        "base_commit",
+        "head_commit",
+        "probe_file",
+        "probe_hash",
+        "observed_before",
+        "observed_after",
+        "verdict",
+        "rationale",
+        "status",
+        "timestamp"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "type": "string", "const": "1" },
+        "run_id": { "type": "string" },
+        "repository": { "type": "string" },
+        "file_path": { "type": "string" },
+        "symbol": { "type": "string" },
+        "base_commit": { "type": "string" },
+        "head_commit": { "type": "string" },
+        "probe_file": { "type": "string" },
+        "probe_hash": { "type": "string" },
+        "case_id": { "type": "string" },
+        "observed_before": { "description": "Any JSON value" },
+        "observed_after": { "description": "Any JSON value" },
+        "verdict": {
+          "type": "string",
+          "enum": ["intended", "unintended", "unresolved"]
+        },
+        "rationale": { "type": "string" },
+        "status": { "type": "string", "enum": ["proposed", "approved"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

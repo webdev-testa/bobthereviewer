@@ -26,7 +26,6 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from bobthereviewer.contracts import ContractError, validate_config
 from bobthereviewer.snapshots import SnapshotError, find_repo_root, _git
@@ -42,6 +41,10 @@ _PYTHON_ENV_CANDIDATES = [".venv/bin/python", ".venv/Scripts/python.exe", "pytho
 
 def _detect_base_branch(repo_root: Path) -> str:
     """Return the default branch name, falling back to 'main'."""
+    try:
+        return _git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd=repo_root).removeprefix("origin/")
+    except SnapshotError:
+        pass
     for name in ("main", "master", "trunk", "develop"):
         try:
             _git(["rev-parse", "--verify", name], cwd=repo_root)
@@ -63,7 +66,7 @@ def _detect_python_env(repo_root: Path) -> str:
         path = repo_root / candidate
         if path.exists():
             return str(path.relative_to(repo_root)).replace("\\", "/")
-    return sys.executable or "python"
+    return "python"
 
 
 def _detect_remote_url(repo_root: Path) -> str | None:
@@ -77,6 +80,16 @@ def _detect_remote_url(repo_root: Path) -> str | None:
 # Init
 # ---------------------------------------------------------------------------
 
+def detect_config(repo_root: Path) -> dict[str, str]:
+    """Detect portable setup defaults before asking questions or writing files."""
+    return {
+        "schema_version": "1",
+        "base_branch": _detect_base_branch(repo_root),
+        "test_dir": _detect_test_dir(repo_root) or "tests",
+        "python_env": _detect_python_env(repo_root),
+        "probe_dir": ".bobreviewer/probes",
+    }
+
 @dataclass
 class SetupResult:
     config_path: Path
@@ -88,6 +101,7 @@ class SetupResult:
 def init(
     repo_dir: Path,
     update_gitignore: bool = True,
+    config: dict[str, str] | None = None,
 ) -> SetupResult:
     """Initialise .bobreviewer/ for a repository.
 
@@ -99,48 +113,18 @@ def init(
 
     config_path = br_dir / "config.json"
 
-    # Load existing config (if any)
-    existing: dict[str, Any] = {}
-    if config_path.exists():
-        try:
-            existing = json.loads(config_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            existing = {}
-
     result = SetupResult(config_path=config_path)
-
-    # Build the new config, preserving existing values
-    new_config: dict[str, Any] = {"schema_version": "1"}
-
-    def _set(key: str, detected: Any) -> None:
-        if key in existing:
-            new_config[key] = existing[key]
-            result.preserved.append(key)
-        else:
-            new_config[key] = detected
-            result.created.append(key)
-
-    _set("base_branch", _detect_base_branch(repo_root))
-    test_dir = _detect_test_dir(repo_root)
-    if test_dir:
-        _set("test_dir", test_dir)
-    _set("python_env", _detect_python_env(repo_root))
-    _set("probe_dir", ".bobreviewer/probes")
-
-    # Validate before writing
-    try:
+    if config_path.exists():
+        # Keep even formatting and optional fields; invalid files need a manual fix.
+        existing = json.loads(config_path.read_text(encoding="utf-8"))
+        validate_config(existing)
+        result.preserved.extend(["config.json", *existing])
+    else:
+        new_config = detect_config(repo_root) if config is None else config
         validate_config(new_config)
-    except ContractError:
-        # Detected values are always valid by construction; this guards
-        # against a corrupted existing config
-        new_config = {k: new_config[k] for k in new_config if k in {"schema_version", "base_branch", "python_env", "probe_dir"}}
-        validate_config(new_config)
-
-    config_path.write_text(
-        json.dumps(new_config, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    if config_path.name not in result.created:
+        config_path.write_text(
+            json.dumps(new_config, indent=2, ensure_ascii=False), encoding="utf-8",
+        )
         result.created.append("config.json")
 
     # Create subdirectories

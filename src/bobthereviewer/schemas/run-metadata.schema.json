@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "bobreviewer/run-metadata",
+  "title": "bobreviewer saved run metadata",
+  "description": "Lightweight summary of a saved run used by GET /api/runs listing",
+  "type": "object",
+  "required": [
+    "run_id",
+    "generated_at",
+    "base_ref",
+    "head_ref",
+    "base_commit",
+    "head_commit",
+    "triage_category"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "base_ref": { "type": "string" },
+    "head_ref": { "type": "string" },
+    "base_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "head_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "triage_category": {
+      "type": "string",
+      "enum": ["docs-only", "tests-only", "config-deps", "no-semantic-change", "code"]
+    }
+  }
+}

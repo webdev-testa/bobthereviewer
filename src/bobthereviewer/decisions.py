@@ -22,6 +22,8 @@ import pathlib
 import re
 import subprocess
 import sys
+from importlib.resources import files
+from importlib.resources.abc import Traversable
 from typing import Optional
 
 try:
@@ -30,20 +32,19 @@ try:
 except ImportError:  # pragma: no cover
     _HAS_JSONSCHEMA = False
 
-# Locate the schema relative to this file so it works from any cwd
-_CONTRACTS_DIR = pathlib.Path(__file__).parent.parent.parent / "contracts"
-_DECISION_SCHEMA_PATH = _CONTRACTS_DIR / "decision.schema.json"
+# Package resources work in both editable and ordinary installations.
+_DECISION_SCHEMA_PATH = files("bobthereviewer").joinpath("schemas", "decision.schema.json")
 
 # Minimum meaningful rationale length (non-whitespace characters)
 _MIN_RATIONALE_CHARS = 10
 
 
-def _load_schema(path: pathlib.Path) -> dict:
+def _load_schema(path: Traversable) -> dict:
     """Load a JSON schema from disk."""
-    if not path.exists():
+    if not path.is_file():
         raise FileNotFoundError(
             f"Schema file not found: {path}. "
-            "Ensure contracts/ directory is present in the repository root."
+            "Reinstall bobthereviewer to restore its packaged schemas."
         )
     return json.loads(path.read_text(encoding="utf-8"))
 
