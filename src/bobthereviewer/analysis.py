@@ -557,29 +557,72 @@ def analyze(
         Contains changed_functions with callers and unknown_references.
         No absolute paths appear in the result.
     """
+    from bobthereviewer.adapters import (
+        LANGUAGES,
+        LanguageSpec,
+        get_language_spec_for_path,
+        get_tier_note,
+    )
+
     changed_set = set(changed_files)
-    changed_symbols = _find_changed_symbols(base_worktree, head_worktree, changed_files)
+    py_changed = [f for f in changed_files if f.endswith(".py")]
+    ts_changed = [
+        f for f in changed_files
+        if get_language_spec_for_path(f) is not None and get_language_spec_for_path(f).key != "python"
+    ]
+
+    languages_in_diff: list[LanguageSpec] = []
+    if py_changed or not ts_changed:
+        languages_in_diff.append(LANGUAGES["python"])
+
+    seen_lang_keys = {LANGUAGES["python"].key} if (py_changed or not ts_changed) else set()
+    for f in ts_changed:
+        spec = get_language_spec_for_path(f)
+        if spec and spec.key not in seen_lang_keys:
+            seen_lang_keys.add(spec.key)
+            languages_in_diff.append(spec)
 
     result = AnalysisResult()
+    result.analysis_limits["languages"] = [
+        {"language": spec.name, "adapter": spec.adapter, "tier": spec.tier}
+        for spec in languages_in_diff
+    ]
 
-    for fqn, file_path in changed_symbols:
-        callers, unknowns = _find_callers_two_hops(
-            fqn, base_worktree, head_worktree, changed_set
+    for spec in languages_in_diff:
+        note = get_tier_note(spec)
+        if note and note not in result.analysis_limits["notes"]:
+            result.analysis_limits["notes"].append(note)
+
+    # 1. Analyze Python files if any changed
+    if py_changed:
+        changed_symbols = _find_changed_symbols(base_worktree, head_worktree, py_changed)
+        for fqn, file_path in changed_symbols:
+            callers, unknowns = _find_callers_two_hops(
+                fqn, base_worktree, head_worktree, changed_set
+            )
+            # Remove self-references (the changed function calling itself)
+            callers = [c for c in callers if c.symbol != fqn]
+            # Callers that are part of the test suite never need a probe.
+            callers = [
+                replace(c, needs_probe=False) if is_test_caller(c.file_path, c.symbol, test_root) else c
+                for c in callers
+            ]
+
+            result.changed_functions.append(ChangedFunction(
+                symbol=fqn,
+                file_path=file_path,
+                callers=callers,
+                unknown_references=unknowns,
+            ))
+
+    # 2. Analyze non-Python files using Tree-sitter if any changed
+    if ts_changed:
+        from bobthereviewer.adapters.treesitter import analyze_treesitter_languages
+
+        ts_funcs = analyze_treesitter_languages(
+            base_worktree, head_worktree, changed_files, test_root
         )
-        # Remove self-references (the changed function calling itself)
-        callers = [c for c in callers if c.symbol != fqn]
-        # Callers that are part of the test suite never need a probe.
-        callers = [
-            replace(c, needs_probe=False) if is_test_caller(c.file_path, c.symbol, test_root) else c
-            for c in callers
-        ]
-
-        result.changed_functions.append(ChangedFunction(
-            symbol=fqn,
-            file_path=file_path,
-            callers=callers,
-            unknown_references=unknowns,
-        ))
+        result.changed_functions.extend(ts_funcs)
 
     return result
 

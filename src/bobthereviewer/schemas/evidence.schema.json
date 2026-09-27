@@ -105,6 +105,23 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Human-readable caveats about incomplete analysis"
+        },
+        "languages": {
+          "type": "array",
+          "description": "Languages analyzed and their support tiers",
+          "items": {
+            "type": "object",
+            "required": ["language", "tier"],
+            "additionalProperties": false,
+            "properties": {
+              "language": { "type": "string" },
+              "adapter": { "type": "string" },
+              "tier": {
+                "type": "string",
+                "enum": ["full", "static", "static_same_file"]
+              }
+            }
+          }
         }
       }
     },

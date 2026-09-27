@@ -77,6 +77,26 @@ def _triage_label(category: str) -> str:
     }.get(category, category)
 
 
+def _format_analyzed_as(languages: list[dict] | None) -> str:
+    """Format the list of languages and tiers for report display."""
+    if not languages:
+        return "Python (full)"
+    parts = []
+    for entry in languages:
+        lang = entry.get("language", "")
+        tier = entry.get("tier", "full")
+        if tier == "full":
+            desc = "full"
+        elif tier == "static":
+            desc = "static, no execution"
+        elif tier == "static_same_file":
+            desc = "static, same-file callers only"
+        else:
+            desc = tier
+        parts.append(f"{lang} ({desc})")
+    return ", ".join(parts) if parts else "Python (full)"
+
+
 # ── main renderer ─────────────────────────────────────────────────────────────
 
 def render_markdown(evidence: dict) -> str:  # noqa: C901 (complexity acceptable here)
@@ -96,6 +116,8 @@ def render_markdown(evidence: dict) -> str:  # noqa: C901 (complexity acceptable
     a(f"| **Run** | `{evidence.get('run_id', '')[:8]}` |")
     a(f"| **Base** | `{evidence.get('base_ref', '')}` → `{evidence.get('head_ref', '')}` |")
     a(f"| **Triage** | {_triage_label(category)} |")
+    languages = evidence.get("analysis_limits", {}).get("languages")
+    a(f"| **Analyzed as** | {_format_analyzed_as(languages)} |")
     if evidence.get("ci_run_url"):
         a(f"| **CI** | [{evidence['ci_run_url']}]({evidence['ci_run_url']}) |")
     a("")
