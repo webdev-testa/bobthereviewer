@@ -10,12 +10,12 @@ export function CallerRow({ caller }: Props) {
   return (
     <div className={cn(
       'flex items-start gap-2 rounded-md px-3 py-2 text-sm border',
-      outsideDiff ? 'border-warning/40 bg-warning-muted' : 'border-border bg-surface-raised',
+      outsideDiff ? 'border-warning/40 bg-warning-muted' : 'border-border bg-muted/40',
     )}>
-      <GitBranch size={14} className="mt-0.5 shrink-0 text-muted" />
+      <GitBranch size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
       <div className="flex-1 min-w-0">
         <span className="font-mono text-xs break-all">{caller.symbol}</span>
-        <div className="text-xs text-muted mt-0.5">
+        <div className="text-xs text-muted-foreground mt-0.5">
           {caller.file_path}:{caller.line}
         </div>
       </div>

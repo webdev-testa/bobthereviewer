@@ -22,7 +22,7 @@ type FlowNode = Node<NodeData>
 const KIND_STYLES: Record<NodeData['kind'], string> = {
   changed:          'border-info bg-info-muted text-info',
   'caller-outside': 'border-warning bg-warning-muted text-warning',
-  'caller-inside':  'border-border bg-surface-raised text-foreground',
+  'caller-inside':  'border-border bg-muted/40 text-foreground',
   unknown:          'border-neutral bg-neutral-muted text-neutral border-dashed',
 }
 
@@ -72,7 +72,7 @@ export function CallerMap({ fn }: Props) {
   useEffect(() => { void layout() }, [layout])
 
   return (
-    <div className="h-56 w-full rounded-md border border-border overflow-hidden bg-surface">
+    <div className="h-56 w-full rounded-md border border-border overflow-hidden bg-card">
       <ReactFlow
         nodes={nodes}
         edges={edges}

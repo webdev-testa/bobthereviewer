@@ -17,7 +17,7 @@ interface Props { events: ProgressEvent[] }
 
 export function ProgressPanel({ events }: Props) {
   if (events.length === 0) {
-    return <div className="text-xs text-muted p-3">Waiting for run to start…</div>
+    return <div className="text-xs text-muted-foreground p-3">Waiting for run to start…</div>
   }
   return (
     <div className="space-y-1 p-1">
@@ -26,10 +26,10 @@ export function ProgressPanel({ events }: Props) {
           {e.status === 'completed' && <CheckCircle2 size={13} className="text-success mt-0.5 shrink-0" />}
           {e.status === 'failed'    && <AlertCircle  size={13} className="text-danger mt-0.5 shrink-0" />}
           {e.status === 'started'   && <Loader2      size={13} className="text-info mt-0.5 shrink-0 animate-spin" />}
-          {!['completed','failed','started'].includes(e.status) && <Circle size={13} className="text-muted mt-0.5 shrink-0" />}
+          {!['completed','failed','started'].includes(e.status) && <Circle size={13} className="text-muted-foreground mt-0.5 shrink-0" />}
           <div>
             <span className="font-medium">{STEP_LABELS[e.step] ?? e.step}</span>
-            {e.message && <span className="text-muted ml-1">{e.message}</span>}
+            {e.message && <span className="text-muted-foreground ml-1">{e.message}</span>}
           </div>
         </div>
       ))}

@@ -1,30 +1,31 @@
-import { CheckCircle2, AlertTriangle, HelpCircle, FileQuestion, Layers } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { CircleCheck, FileQuestion, Layers, TriangleAlert } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import { TONE_CLASSES, type Tone } from '@/lib/tones'
 import type { TriageInfo } from '@/types/evidence'
 
-const CONFIG: Record<string, { label: string; icon: React.ReactNode; cls: string }> = {
-  'code':               { label: 'Code change',           icon: <Layers size={13} />,         cls: 'bg-info-muted text-info border-info/30' },
-  'tests-only':         { label: 'Tests only',            icon: <CheckCircle2 size={13} />,   cls: 'bg-neutral-muted text-neutral border-neutral/30' },
-  'docs-only':          { label: 'Docs only',             icon: <FileQuestion size={13} />,   cls: 'bg-neutral-muted text-neutral border-neutral/30' },
-  'config-deps':        { label: 'Config / deps',         icon: <AlertTriangle size={13} />,  cls: 'bg-warning-muted text-warning border-warning/30' },
-  'no-semantic-change': { label: 'No semantic change',    icon: <CheckCircle2 size={13} />,   cls: 'bg-neutral-muted text-neutral border-neutral/30' },
+const CONFIG: Record<string, { label: string; icon: LucideIcon; tone: Tone }> = {
+  'code':               { label: 'Code change',        icon: Layers,        tone: 'info' },
+  'tests-only':         { label: 'Tests only',         icon: CircleCheck,   tone: 'neutral' },
+  'docs-only':          { label: 'Docs only',          icon: FileQuestion,  tone: 'neutral' },
+  'config-deps':        { label: 'Config / deps',      icon: TriangleAlert, tone: 'warning' },
+  'no-semantic-change': { label: 'No semantic change', icon: CircleCheck,   tone: 'neutral' },
 }
 
 interface Props { triage: TriageInfo }
 
 export function TriageBadge({ triage }: Props) {
-  const cfg = CONFIG[triage.category] ?? { label: triage.category, icon: <HelpCircle size={13} />, cls: 'bg-neutral-muted text-neutral' }
+  const { label, icon: Icon, tone } = CONFIG[triage.category] ?? { label: triage.category, icon: FileQuestion, tone: 'neutral' }
   return (
-    <span className="flex items-center gap-2 flex-wrap">
-      <Badge variant="outline" className={cn('flex items-center gap-1 text-xs', cfg.cls)}>
-        {cfg.icon}{cfg.label}
+    <>
+      <Badge variant="outline" className={TONE_CLASSES[tone]}>
+        <Icon aria-hidden="true" />{label}
       </Badge>
       {triage.skipped && (
-        <Badge variant="outline" className="text-xs bg-warning-muted text-warning border-warning/30">
-          <AlertTriangle size={13} className="mr-1" />Execution skipped — {triage.skip_reason ?? 'docs-only diff'}
+        <Badge variant="outline" className={TONE_CLASSES.warning}>
+          <TriangleAlert aria-hidden="true" />Execution skipped — {triage.skip_reason ?? 'docs-only diff'}
         </Badge>
       )}
-    </span>
+    </>
   )
 }
