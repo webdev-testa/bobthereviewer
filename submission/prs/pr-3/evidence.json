@@ -1,12 +1,12 @@
 {
   "schema_version": "1",
-  "run_id": "36b1a140-a516-4382-982b-7ca95ce51269",
-  "generated_at": "2026-09-27T13:05:48.318505Z",
+  "run_id": "31c592bb-3147-49f0-bd87-44a3c677f7f7",
+  "generated_at": "2026-09-27T13:18:31.867865Z",
   "repository": "https://github.com/kafiirgie/bobthereviewer-demo-prs",
-  "base_ref": "a4c603d6febb2b5e57f412bff8f1c0a3f29a9f37",
-  "head_ref": "94a70ae43aaa2d2010fe0442f35db293942c087f",
-  "base_commit": "a4c603d6febb2b5e57f412bff8f1c0a3f29a9f37",
-  "head_commit": "94a70ae43aaa2d2010fe0442f35db293942c087f",
+  "base_ref": "745fb9c32f67f41b1f954885feaa5a34482dd1cd",
+  "head_ref": "8579f0e45e7674b39040174f0107a7dbb0c934ee",
+  "base_commit": "745fb9c32f67f41b1f954885feaa5a34482dd1cd",
+  "head_commit": "8579f0e45e7674b39040174f0107a7dbb0c934ee",
   "prior_run_id": null,
   "ci_run_url": null,
   "frozen_suite_hash": "5ef2cfdb307a277a9257f891925b0a55da21a76ad08b6dd2790a41c6df692e23",
@@ -29,7 +29,14 @@
       }
     ]
   },
-  "changed_functions": [],
+  "changed_functions": [
+    {
+      "symbol": "pricing.calculate_price",
+      "file_path": "pricing.py",
+      "callers": [],
+      "unknown_references": []
+    }
+  ],
   "test_results": {
     "base": {
       "tests/test_discount.py::TestApplyDiscount::test_no_discount": {
@@ -103,31 +110,53 @@
           "execution_status": "success",
           "comparison_status": "match",
           "inconclusive_reason": null,
-          "base_executed_at": "2026-09-27T13:05:48.236346+00:00",
-          "head_executed_at": "2026-09-27T13:05:48.277126+00:00"
+          "base_executed_at": "2026-09-27T13:18:31.693985+00:00",
+          "head_executed_at": "2026-09-27T13:18:31.736654+00:00"
+        }
+      ]
+    },
+    {
+      "probe_file": ".bobreviewer/probes/pricing_basic.json",
+      "probe_hash": "28fe8a0f8f9b16b92965ae98594c2ab689fa6973901c5186186ffafa6f531bab",
+      "target": "pricing.calculate_price",
+      "prior_difference_run_id": null,
+      "cases": [
+        {
+          "id": "price-100",
+          "args": [
+            100.0
+          ],
+          "kwargs": {},
+          "base_output": 111.0,
+          "head_output": 112.0,
+          "execution_status": "success",
+          "comparison_status": "differ",
+          "inconclusive_reason": null,
+          "base_executed_at": "2026-09-27T13:18:31.778424+00:00",
+          "head_executed_at": "2026-09-27T13:18:31.822596+00:00"
         }
       ]
     }
   ],
-  "decisions": [
+  "decisions": [],
+  "prior_decisions": [
     {
       "schema_version": "1",
-      "run_id": "f3f63573-4bf7-46b0-a36a-277c1f073039",
+      "run_id": "7ddc2471-c504-46a5-b5e4-0a7f83e2af5c",
       "repository": "https://github.com/kafiirgie/bobthereviewer-demo-prs.git",
-      "file_path": "invoice.py",
-      "symbol": "invoice.calculate_invoice",
-      "base_commit": "a4c603d6febb2b5e57f412bff8f1c0a3f29a9f37",
-      "head_commit": "27462079118cd41cd8a50c4a426c288cd93f5012",
-      "probe_file": ".bobreviewer/probes/invoice_basic.json",
-      "probe_hash": "673604eea9f5964205248a95d69024aa7e8ad6f71f6dbe7efeade1e707d0e614",
-      "case_id": "invoice-small-discount",
-      "observed_before": 100.0,
-      "observed_after": 99.99,
-      "verdict": "unintended",
-      "rationale": "Invoices must round to cents; flooring loses a cent",
+      "file_path": "pricing.py",
+      "symbol": "pricing.calculate_price",
+      "base_commit": "f04cdb842245d90b409c3286c18c5bc97ecdfda4",
+      "head_commit": "850a8946c3ddb1d1da35248244ad40e66b497073",
+      "probe_file": ".bobreviewer/probes/pricing_basic.json",
+      "probe_hash": "28fe8a0f8f9b16b92965ae98594c2ab689fa6973901c5186186ffafa6f531bab",
+      "case_id": "price-100",
+      "observed_before": 110.0,
+      "observed_after": 111.0,
+      "verdict": "intended",
+      "rationale": "Tax rate raised to 11 percent per the 2026 policy",
       "status": "proposed",
-      "timestamp": "2026-09-27T13:03:24.773167Z"
+      "timestamp": "2026-09-27T13:07:10.296148Z"
     }
-  ],
-  "prior_decisions": []
+  ]
 }

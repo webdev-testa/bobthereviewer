@@ -1,15 +1,15 @@
 {
   "schema_version": "1",
-  "run_id": "00000000-0000-0000-0000-000000000001",
-  "generated_at": "2026-09-27T08:00:00Z",
-  "repository": "https://github.com/webdev-testa/bobthereviewer-demo.git",
-  "base_ref": "demo-base",
-  "head_ref": "demo-rounding-change",
-  "base_commit": "1111111111111111111111111111111111111111",
-  "head_commit": "2222222222222222222222222222222222222222",
+  "run_id": "f8d3b4b8-b49d-4e12-8806-404e55d413ac",
+  "generated_at": "2026-09-27T13:03:48.638596Z",
+  "repository": "https://github.com/kafiirgie/bobthereviewer-demo-prs",
+  "base_ref": "a4c603d6febb2b5e57f412bff8f1c0a3f29a9f37",
+  "head_ref": "7358d1e5d33f7dbebb9c1bb5a003d6710dc18f25",
+  "base_commit": "a4c603d6febb2b5e57f412bff8f1c0a3f29a9f37",
+  "head_commit": "7358d1e5d33f7dbebb9c1bb5a003d6710dc18f25",
   "prior_run_id": null,
-  "ci_run_url": "https://github.com/webdev-testa/bobthereviewer-demo/actions/runs/1",
-  "frozen_suite_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "ci_run_url": null,
+  "frozen_suite_hash": "5ef2cfdb307a277a9257f891925b0a55da21a76ad08b6dd2790a41c6df692e23",
   "triage": {
     "category": "code",
     "skipped": false,
@@ -17,52 +17,200 @@
   },
   "analysis_limits": {
     "max_hops": 2,
-    "notes": []
+    "notes": [
+      "Python interpreter: python3.11",
+      "Ran with bobreviewer's own Python; install the project's dependencies there or create .venv"
+    ],
+    "languages": [
+      {
+        "language": "Python",
+        "adapter": "python-ast",
+        "tier": "full"
+      }
+    ]
   },
   "changed_functions": [
     {
-      "symbol": "demo.discount.apply_discount",
-      "file_path": "demo/sample_project/discount.py",
+      "symbol": "discount.apply_discount",
+      "file_path": "discount.py",
       "callers": [
         {
-          "symbol": "demo.invoice.calculate_invoice",
-          "file_path": "demo/sample_project/invoice.py",
-          "line": 12,
+          "symbol": "invoice.calculate_invoice",
+          "file_path": "invoice.py",
+          "line": 8,
           "in_diff": false,
           "resolution": "resolved",
-          "needs_probe": true,
+          "needs_probe": false,
           "via": null
+        },
+        {
+          "symbol": "tests.test_discount.test_result_is_float",
+          "file_path": "tests/test_discount.py",
+          "line": 26,
+          "in_diff": false,
+          "resolution": "resolved",
+          "needs_probe": false,
+          "via": null
+        },
+        {
+          "symbol": "tests.test_discount.test_no_discount",
+          "file_path": "tests/test_discount.py",
+          "line": 16,
+          "in_diff": false,
+          "resolution": "resolved",
+          "needs_probe": false,
+          "via": null
+        },
+        {
+          "symbol": "tests.test_discount.test_fifty_percent",
+          "file_path": "tests/test_discount.py",
+          "line": 20,
+          "in_diff": false,
+          "resolution": "resolved",
+          "needs_probe": false,
+          "via": null
+        },
+        {
+          "symbol": "tests.test_discount.test_zero_price",
+          "file_path": "tests/test_discount.py",
+          "line": 23,
+          "in_diff": false,
+          "resolution": "resolved",
+          "needs_probe": false,
+          "via": null
+        },
+        {
+          "symbol": "tests.test_discount.test_no_discount",
+          "file_path": "tests/test_discount.py",
+          "line": 32,
+          "in_diff": false,
+          "resolution": "resolved",
+          "needs_probe": false,
+          "via": [
+            {
+              "symbol": "invoice.calculate_invoice",
+              "file_path": "invoice.py",
+              "line": 8
+            }
+          ]
+        },
+        {
+          "symbol": "tests.test_discount.test_fifty_percent",
+          "file_path": "tests/test_discount.py",
+          "line": 35,
+          "in_diff": false,
+          "resolution": "resolved",
+          "needs_probe": false,
+          "via": [
+            {
+              "symbol": "invoice.calculate_invoice",
+              "file_path": "invoice.py",
+              "line": 8
+            }
+          ]
         }
       ],
       "unknown_references": []
     }
   ],
   "test_results": {
-    "base": {},
-    "head": {}
+    "base": {
+      "tests/test_discount.py::TestApplyDiscount::test_no_discount": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestApplyDiscount::test_fifty_percent": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestApplyDiscount::test_zero_price": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestApplyDiscount::test_result_is_float": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestCalculateInvoice::test_no_discount": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestCalculateInvoice::test_fifty_percent": {
+        "status": "pass",
+        "message": null
+      }
+    },
+    "head": {
+      "tests/test_discount.py::TestApplyDiscount::test_no_discount": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestApplyDiscount::test_fifty_percent": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestApplyDiscount::test_zero_price": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestApplyDiscount::test_result_is_float": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestCalculateInvoice::test_no_discount": {
+        "status": "pass",
+        "message": null
+      },
+      "tests/test_discount.py::TestCalculateInvoice::test_fifty_percent": {
+        "status": "pass",
+        "message": null
+      }
+    }
   },
   "probe_results": [
     {
       "probe_file": ".bobreviewer/probes/invoice_basic.json",
-      "probe_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "target": "demo.invoice.calculate_invoice",
+      "probe_hash": "673604eea9f5964205248a95d69024aa7e8ad6f71f6dbe7efeade1e707d0e614",
+      "target": "invoice.calculate_invoice",
       "prior_difference_run_id": null,
       "cases": [
         {
-          "id": "price-100",
-          "args": [10, 9.99],
+          "id": "invoice-small-discount",
+          "args": [
+            105.26,
+            0.05
+          ],
           "kwargs": {},
           "base_output": 100.0,
           "head_output": 99.99,
           "execution_status": "success",
           "comparison_status": "differ",
           "inconclusive_reason": null,
-          "inconclusive_detail": null,
-          "base_executed_at": "2026-09-27T08:00:01Z",
-          "head_executed_at": "2026-09-27T08:00:02Z"
+          "base_executed_at": "2026-09-27T13:03:48.558180+00:00",
+          "head_executed_at": "2026-09-27T13:03:48.598823+00:00"
         }
       ]
     }
   ],
-  "decisions": []
+  "decisions": [
+    {
+      "schema_version": "1",
+      "run_id": "f3f63573-4bf7-46b0-a36a-277c1f073039",
+      "repository": "https://github.com/kafiirgie/bobthereviewer-demo-prs.git",
+      "file_path": "invoice.py",
+      "symbol": "invoice.calculate_invoice",
+      "base_commit": "a4c603d6febb2b5e57f412bff8f1c0a3f29a9f37",
+      "head_commit": "27462079118cd41cd8a50c4a426c288cd93f5012",
+      "probe_file": ".bobreviewer/probes/invoice_basic.json",
+      "probe_hash": "673604eea9f5964205248a95d69024aa7e8ad6f71f6dbe7efeade1e707d0e614",
+      "case_id": "invoice-small-discount",
+      "observed_before": 100.0,
+      "observed_after": 99.99,
+      "verdict": "unintended",
+      "rationale": "Invoices must round to cents; flooring loses a cent",
+      "status": "proposed",
+      "timestamp": "2026-09-27T13:03:24.773167Z"
+    }
+  ],
+  "prior_decisions": []
 }

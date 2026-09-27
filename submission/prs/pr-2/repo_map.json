@@ -1,17 +1,17 @@
 {
   "schema_version": "1",
   "repo": "https://github.com/kafiirgie/bobthereviewer-demo-prs",
-  "sha": "7358d1e5d33f7dbebb9c1bb5a003d6710dc18f25",
-  "generated_at": "2026-09-27T13:03:48.659933Z",
+  "sha": "b99a40f0950b78255a8551e5fe04198f34762d25",
+  "generated_at": "2026-09-27T13:07:30.977427Z",
   "modules": [
     {
       "path": "discount.py",
       "language": "python",
       "tier": "full",
       "last_commit": {
-        "sha": "2746207",
+        "sha": "6546878",
         "date": "2026-09-27",
-        "subject": "Change rounding in apply_discount and add an invoice probe",
+        "subject": "demo-base: sample pricing project",
         "pr": null
       }
     },
@@ -31,9 +31,9 @@
       "language": "python",
       "tier": "full",
       "last_commit": {
-        "sha": "6546878",
+        "sha": "850a894",
         "date": "2026-09-27",
-        "subject": "demo-base: sample pricing project",
+        "subject": "Raise the tax rate from 10% to 11%",
         "pr": null
       }
     },
@@ -85,6 +85,6 @@
     "File-level imports only; which function calls which is in the per-PR evidence map.",
     "Imports of packages outside this repository are not drawn: they have no module here.",
     "Imports the analyser cannot resolve (dynamic, or escaping the repository root) are listed as unknowns, never dropped.",
-    "Last commit per module is taken from git history at 7358d1e."
+    "Last commit per module is taken from git history at b99a40f."
   ]
 }
