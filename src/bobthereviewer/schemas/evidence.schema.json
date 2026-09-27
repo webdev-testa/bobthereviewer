@@ -132,6 +132,11 @@
       "type": "array",
       "description": "Decision records loaded from .bobreviewer/decisions/ at run time; may be empty",
       "items": { "$ref": "#/definitions/decision_summary" }
+    },
+    "prior_decisions": {
+      "type": "array",
+      "description": "Approved decisions merged into the default branch; prior context, not approval of the current change",
+      "items": { "$ref": "#/definitions/decision_summary" }
     }
   },
   "definitions": {
