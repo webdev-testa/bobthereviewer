@@ -44,7 +44,7 @@ export function JudgePage() {
           </Alert>
         )}
         <DecisionContext.Provider value={decisionActions}>
-          <EvidenceView evidence={evidence} />
+          <EvidenceView evidence={evidence} repoMap={null} />
         </DecisionContext.Provider>
       </main>
     </>

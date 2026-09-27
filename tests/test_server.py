@@ -561,3 +561,15 @@ class TestProgressNoDuplicates:
         assert events, "no progress events received"
         assert len(events) == len(set(events)), "an event was sent twice"
         assert sum('"step":"triage","status":"started"' in e for e in events) == 1
+
+
+class TestRepoMapEndpoint:
+    def test_returns_saved_map_or_404(self, tmp_path):
+        run_id = str(uuid.uuid4())
+        run_dir = create_run_dir(str(tmp_path), run_id)
+        conn, token, _ = _start_server(tmp_path)
+        assert _req(conn, "GET", f"/api/runs/{run_id}/repo_map", token=token)[0] == 404
+        (run_dir / "repo_map.json").write_text('{"schema_version": "1", "modules": []}', encoding="utf-8")
+        status, body = _req(conn, "GET", f"/api/runs/{run_id}/repo_map", token=token)
+        assert status == 200 and body["schema_version"] == "1"
+        assert _req(conn, "GET", f"/api/runs/{run_id}/repo_map")[0] == 401
