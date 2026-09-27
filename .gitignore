@@ -18,6 +18,7 @@ env/
 .bobreviewer/runs/
 
 # IDE
+.bob/mcp.json
 .vscode/
 .idea/
 
