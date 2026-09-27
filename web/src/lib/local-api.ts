@@ -3,6 +3,7 @@
  * Source of truth: contracts/local-server-api.md
  * Only imported in local (developer) mode — never bundled into the judge page.
  */
+import type { RepoMap } from '@/lib/repo-map'
 import type { Evidence } from '@/types/evidence'
 import type {
   RunSummary,
@@ -44,6 +45,14 @@ export function getRepo(): Promise<RepoInfo> {
 
 export function listRefs(): Promise<GitRef[]> {
   return apiFetch<GitRef[]>('/api/refs')
+}
+
+/** The run's repo map, or null when the run has none. */
+export async function getRepoMap(runId: string): Promise<RepoMap | null> {
+  const res = await fetch(`/api/runs/${encodeURIComponent(runId)}/repo_map`, { headers: authHeaders() })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`API /api/runs/${runId}/repo_map → ${res.status}: ${await res.text()}`)
+  return res.json() as Promise<RepoMap>
 }
 
 export function startRun(body: StartRunRequest): Promise<StartRunResponse> {

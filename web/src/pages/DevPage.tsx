@@ -8,7 +8,8 @@ import { SaveDecisionDialog } from '@/components/SaveDecisionDialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { caseKey, DecisionContext } from '@/lib/decision-context'
-import { getRun, listRuns } from '@/lib/local-api'
+import { getRepoMap, getRun, listRuns } from '@/lib/local-api'
+import type { RepoMap } from '@/lib/repo-map'
 import { requestedRunId } from '@/lib/mode'
 import { useTheme } from '@/lib/use-theme'
 import type { Evidence } from '@/types/evidence'
@@ -21,6 +22,7 @@ export function DevPage() {
   const [runs, setRuns] = useState<RunSummary[]>([])
   const [selectedRun, setSelectedRun] = useState<string | null>(null)
   const [evidence, setEvidence] = useState<Evidence | null>(null)
+  const [repoMap, setRepoMap] = useState<RepoMap | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<{ symbol: string; caseId: string; probeFile: string } | null>(null)
   const [saved, setSaved] = useState<ReadonlySet<string>>(new Set())
@@ -47,8 +49,11 @@ export function DevPage() {
     setSaved(new Set())
     setLoadError(null)
     setEvidence(null)
+    setRepoMap(null)
     try {
-      setEvidence(await getRun(id))
+      const [run, map] = await Promise.all([getRun(id), getRepoMap(id)])
+      setEvidence(run)
+      setRepoMap(map)
     } catch (e) {
       setLoadError(message(e, 'Failed to load run'))
     }
@@ -74,7 +79,7 @@ export function DevPage() {
         )}
         {evidence && (
           <DecisionContext.Provider value={decisionActions}>
-            <EvidenceView evidence={evidence} />
+            <EvidenceView evidence={evidence} repoMap={repoMap} />
           </DecisionContext.Provider>
         )}
         {!evidence && !loadError && (

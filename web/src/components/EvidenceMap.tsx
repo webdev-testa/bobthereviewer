@@ -315,7 +315,7 @@ export function EvidenceMap({ evidence }: { evidence: Evidence }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle><h2 className="text-lg font-semibold">Evidence map</h2></CardTitle>
+        <CardTitle><h2 id="evidence-map-heading" className="text-lg font-semibold">Evidence map</h2></CardTitle>
         <CardDescription>What this change can reach, and what running it showed. Select a box for details.</CardDescription>
       </CardHeader>
       <CardContent>

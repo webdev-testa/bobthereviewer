@@ -21,6 +21,7 @@ Endpoints:
   GET  /api/runs                        → list saved runs
   GET  /api/runs/{run_id}               → evidence.json for run
   POST /api/runs                        → start a new run (returns {run_id} immediately)
+  GET  /api/runs/{run_id}/repo_map      → the run's repo_map.json (404 when the run has none)
   GET  /api/runs/{run_id}/progress      → SSE progress stream
   GET  /api/repo                        → repo folder name, current branch, configured base branch
   GET  /api/refs                        → local branches, remote-tracking branches, tags (name + short SHA)
@@ -291,6 +292,11 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
                 if not self._validate_run_id_segment(run_id):
                     return
                 self._handle_get_run(run_id)
+            elif len(segments) == 4 and segments[3] == "repo_map":
+                run_id = segments[2]
+                if not self._validate_run_id_segment(run_id):
+                    return
+                self._handle_repo_map(run_id)
             elif len(segments) == 4 and segments[3] == "progress":
                 run_id = segments[2]
                 if not self._validate_run_id_segment(run_id):
@@ -364,6 +370,13 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
                 continue
             refs.append({"name": name, "sha": sha, "kind": kinds[prefix]})
         self._send_json(200, refs)
+
+    def _handle_repo_map(self, run_id: str) -> None:
+        path = Path(self.repo_dir) / ".bobreviewer" / "runs" / run_id / "repo_map.json"
+        try:
+            self._send_json(200, json.loads(path.read_text(encoding="utf-8")))
+        except FileNotFoundError:
+            self._send_json(404, {"error": "no repo map for this run"})
 
     def _handle_list_runs(self) -> None:
         runs = list_runs(self.repo_dir)
