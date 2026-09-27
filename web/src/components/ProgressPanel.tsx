@@ -19,10 +19,14 @@ export function ProgressPanel({ events }: Props) {
   if (events.length === 0) {
     return <div className="text-xs text-muted-foreground p-3">Waiting for run to start…</div>
   }
+  // One row per step showing its latest event: a finished step's "started" row used to keep
+  // spinning next to its result, so a completed review looked like it was still running.
+  const latest = new Map<string, ProgressEvent>()
+  events.forEach((e) => latest.set(e.step, e))
   return (
     <div className="space-y-1 p-1">
-      {events.map((e, i) => (
-        <div key={i} className={cn('flex items-start gap-2 rounded px-2 py-1.5 text-xs', e.status === 'failed' && 'bg-danger-muted')}>
+      {[...latest.values()].map((e) => (
+        <div key={e.step} className={cn('flex items-start gap-2 rounded px-2 py-1.5 text-xs', e.status === 'failed' && 'bg-danger-muted')}>
           {e.status === 'completed' && <CheckCircle2 size={13} className="text-success mt-0.5 shrink-0" />}
           {e.status === 'failed'    && <AlertCircle  size={13} className="text-danger mt-0.5 shrink-0" />}
           {e.status === 'started'   && <Loader2      size={13} className="text-info mt-0.5 shrink-0 animate-spin" />}
