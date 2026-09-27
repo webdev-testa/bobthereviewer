@@ -1,4 +1,5 @@
 import { CircleAlert, CircleCheck, CircleHelp, ExternalLink, MinusCircle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -7,10 +8,30 @@ import { TriageBadge } from '@/components/TriageBadge'
 import { TONE_CLASSES, type Tone } from '@/lib/tones'
 import { cn } from '@/lib/utils'
 import { reviewVerdict } from '@/lib/verdict'
-import type { Evidence } from '@/types/evidence'
+import type { Evidence, LanguageSupport } from '@/types/evidence'
 
 const VERDICT_ICON: Record<Tone, typeof CircleAlert> = {
   danger: CircleAlert, warning: CircleHelp, success: CircleCheck, info: CircleHelp, neutral: MinusCircle,
+}
+
+// Same wording as the PR comment's "Analyzed as" line.
+const TIER_TEXT: Record<LanguageSupport['tier'], string> = {
+  full: 'full: callers, tests and probes',
+  static: 'static: callers only, nothing run',
+  static_same_file: 'static, same-file callers only (beta)',
+}
+
+function LanguageBadges({ languages }: { languages?: LanguageSupport[] }) {
+  const shown = languages?.length ? languages : [{ language: 'Python', tier: 'full' as const }]
+  return (
+    <>
+      {shown.map(({ language, tier }) => (
+        <Badge key={language} variant="outline" className={TONE_CLASSES[tier === 'full' ? 'success' : 'neutral']}>
+          {language} · {TIER_TEXT[tier]}
+        </Badge>
+      ))}
+    </>
+  )
 }
 
 function formatTime(iso: string) {
@@ -52,9 +73,15 @@ export function SummaryCard({ evidence }: { evidence: Evidence }) {
       </CardContent>
       <Separator />
       <CardContent className="flex flex-col gap-4 pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">Change type</span>
-          <TriageBadge triage={evidence.triage} />
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">Change type</span>
+            <TriageBadge triage={evidence.triage} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">Analyzed as</span>
+            <LanguageBadges languages={evidence.analysis_limits.languages} />
+          </div>
         </div>
         {evidence.ci_run_url?.startsWith('https://') ? (
           <Button asChild variant="outline" size="sm">
