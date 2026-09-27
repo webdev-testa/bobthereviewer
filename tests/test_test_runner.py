@@ -161,3 +161,16 @@ def test_frozen_suite_passes_on_both_tags(tmp_path):
             _remove_worktree(repo_root, head_wt)
     finally:
         _remove_worktree(repo_root, base_wt)
+
+
+def test_step_summary_never_reports_a_failed_run_as_passing():
+    from bobthereviewer.test_runner import _step_summary
+
+    missing = {"<pytest>": {"status": "error", "message": "pytest is not installed in python3.11"}}
+    assert _step_summary("base", missing) == ("failed", "base: tests did not run — pytest is not installed in python3.11")
+
+    ran = {"t.py::a": {"status": "pass", "message": None}, "t.py::b": {"status": "fail", "message": "x"}}
+    assert _step_summary("head", ran) == ("completed", "head: 2 test(s) — 1 passed, 1 failed, 0 error(s)")
+
+    status, message = _step_summary("base", {**ran, "<collection>": {"status": "error", "message": "SyntaxError"}})
+    assert status == "failed" and "2 test(s)" in message and "SyntaxError" in message
