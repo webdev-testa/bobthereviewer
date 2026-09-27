@@ -16,8 +16,8 @@ It runs from the terminal, works inside Bob IDE through ordinary CLI invocation,
 
 ## What We Are Leaving Out
 
-- Multi-language support — Python only for this version
-- Whole-repository call graph — two-hop caller tracing on the changed functions only; whole-repo map is optional/stretch
+- Behavior evidence beyond Python — tests and probes run for Python only; TypeScript, JavaScript, Java, C# and Go get static cross-file impact (tier `static`), Rust, C and C++ same-file callers (tier `static_same_file`, beta), and every report states each language's tier
+- Whole-repository call graph — callers are traced two hops from the changed functions; the whole-repository map is file-level (folders, files, import edges), not a function call graph
 - Autonomous code fixing — Bob helps draft a fix; the developer commits and reruns
 - Database or backend — all persistent state is files in the repository; local run history is plain JSON files
 - Dynamic dispatch resolution — calls through `getattr`, decorators, or frameworks are marked `unknown`
@@ -648,8 +648,8 @@ Collect as you go — do not leave this to the last day:
 
 - Proving a change is safe — the tool reports what it observed on the probed cases; it does not certify broader correctness
 - Resolving dynamic dispatch (`getattr`, metaclasses, framework magic)
-- Multi-language support
-- Whole-repository call graph (optional/stretch only)
+- Behavior evidence (tests and probes) for languages other than Python — they get static impact with an explicit tier only
+- A function-level whole-repository call graph — the repository map is file-level imports
 - Autonomous code repair
 - Persistent state in the judge/public web viewer
 - External service dependencies in any demo scenario
