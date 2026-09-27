@@ -21,9 +21,26 @@ import pytest
 
 from bobthereviewer.run_store import create_run_dir, save_evidence
 from bobthereviewer.server import make_server
+from tests.test_setup_cli import commit_files, init_repo
 
 
 PYTHON = sys.executable
+
+
+@pytest.fixture
+def git_repo(tmp_path):
+    """A repo whose `head` tag changes discount.apply_discount, called from invoice.py."""
+    root = tmp_path / "repo"
+    init_repo(root)
+    commit_files(root, {
+        ".gitignore": ".bobreviewer/runs/\n__pycache__/\n",
+        "discount.py": "def apply_discount(p, r):\n    return round(p * (1 - r), 2)\n",
+        "invoice.py": "from discount import apply_discount\ndef calculate_invoice(p, r):\n    return apply_discount(p, r)\n",
+    }, "base", tag="base")
+    commit_files(root, {
+        "discount.py": "import math\ndef apply_discount(p, r):\n    return math.floor(p * (1 - r) * 100) / 100\n",
+    }, "rounding", tag="head")
+    return root
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +198,35 @@ def _decide(run_id: str, verdict: str, rationale: str) -> dict:
             "verdict": verdict, "rationale": rationale}
 
 
+class TestRepoAndRefs:
+    def test_repo_reports_branch_and_default_base(self, git_repo):
+        conn, token, _ = _start_server(git_repo)
+        status, body = _req(conn, "GET", "/api/repo", token=token)
+        assert status == 200
+        assert body == {"repo": "repo", "branch": "main", "base_branch": "main"}
+
+    def test_repo_base_branch_comes_from_config(self, git_repo):
+        (git_repo / ".bobreviewer").mkdir(exist_ok=True)
+        (git_repo / ".bobreviewer" / "config.json").write_text('{"base_branch": "develop"}', encoding="utf-8")
+        conn, token, _ = _start_server(git_repo)
+        _, body = _req(conn, "GET", "/api/repo", token=token)
+        assert body["base_branch"] == "develop"
+
+    def test_refs_lists_branches_and_tags(self, git_repo):
+        conn, token, _ = _start_server(git_repo)
+        status, refs = _req(conn, "GET", "/api/refs", token=token)
+        assert status == 200
+        by_name = {r["name"]: r for r in refs}
+        assert by_name["main"]["kind"] == "branch"
+        assert by_name["base"]["kind"] == "tag" and by_name["head"]["kind"] == "tag"
+        assert all(len(r["sha"]) >= 7 for r in refs)
+
+    def test_repo_and_refs_require_token(self, git_repo):
+        conn, _, _ = _start_server(git_repo)
+        assert _req(conn, "GET", "/api/repo")[0] == 401
+        assert _req(conn, "GET", "/api/refs")[0] == 401
+
+
 class TestDecide:
     def test_save_writes_decision_file(self, tmp_path):
         run_id = _saved_run_with_difference(tmp_path)
@@ -254,41 +300,75 @@ class TestRunListAndDetail:
 # ---------------------------------------------------------------------------
 
 class TestStartRun:
-    def test_start_run_returns_run_id(self, tmp_path):
-        conn, token, _ = _start_server(tmp_path)
-        # Use tmp_path itself as both worktree paths (empty dirs — no probes)
+    def test_start_run_returns_run_id(self, git_repo):
+        conn, token, _ = _start_server(git_repo)
         status, body = _req(conn, "POST", "/api/runs", token=token, body={
-            "before_ref": str(tmp_path),
-            "after_ref":  str(tmp_path),
+            "before_ref": "base",
+            "after_ref":  "head",
         })
         assert status == 200
         assert "run_id" in body
         assert _is_valid_uuid4(body["run_id"])
 
-    def test_start_run_rejects_missing_refs(self, tmp_path):
-        conn, token, _ = _start_server(tmp_path)
+    def test_start_run_rejects_missing_refs(self, git_repo):
+        conn, token, _ = _start_server(git_repo)
         status, body = _req(conn, "POST", "/api/runs", token=token, body={
             "before_ref": "", "after_ref": "",
         })
         assert status == 400
 
-    def test_start_run_rejects_unsafe_probe_path(self, tmp_path):
-        conn, token, _ = _start_server(tmp_path)
+    def test_start_run_rejects_unsafe_probe_path(self, git_repo):
+        conn, token, _ = _start_server(git_repo)
         status, _ = _req(conn, "POST", "/api/runs", token=token, body={
-            "before_ref": str(tmp_path),
-            "after_ref":  str(tmp_path),
+            "before_ref": "base",
+            "after_ref":  "head",
             "probes": ["../../etc/shadow"],
         })
         assert status == 400
 
-    def test_second_start_run_while_busy_returns_409(self, tmp_path):
-        """Second POST /api/runs while a run is active → HTTP 409."""
-        conn, token, _ = _start_server(tmp_path)
+    def test_start_run_rejects_unknown_ref(self, git_repo):
+        conn, token, _ = _start_server(git_repo)
+        status, body = _req(conn, "POST", "/api/runs", token=token, body={
+            "before_ref": "base", "after_ref": "no-such-branch",
+        })
+        assert status == 400
+        assert "no-such-branch" in body["error"]
 
-        # Start first run (use tmp_path as both sides — finishes quickly)
+    def test_web_run_uses_real_pipeline(self, git_repo):
+        """D2: a web review is the same as `bobreviewer run`: real commits, callers, a saved run."""
+        conn, token, _ = _start_server(git_repo)
+        status, body = _req(conn, "POST", "/api/runs", token=token, body={"before_ref": "base", "after_ref": "head"})
+        assert status == 200
+        assert body["warnings"] == []
+        run_id = body["run_id"]
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            get_status, evidence = _req(conn, "GET", f"/api/runs/{run_id}", token=token)
+            if get_status == 200:
+                break
+            time.sleep(0.2)
+        else:
+            pytest.fail("web run did not complete within 60 s")
+        assert len(evidence["base_commit"]) == 40
+        changed = {fn["symbol"]: fn for fn in evidence["changed_functions"]}
+        assert "discount.apply_discount" in changed
+        assert "invoice.calculate_invoice" in [c["symbol"] for c in changed["discount.apply_discount"]["callers"]]
+
+    def test_uncommitted_files_warn_but_do_not_block(self, git_repo):
+        (git_repo / "discount.py").write_text("# edited, not committed\n", encoding="utf-8")
+        conn, token, _ = _start_server(git_repo)
+        status, body = _req(conn, "POST", "/api/runs", token=token, body={"before_ref": "base", "after_ref": "head"})
+        assert status == 200
+        assert body["warnings"] == ["Not included (uncommitted): discount.py"]
+
+    def test_second_start_run_while_busy_returns_409(self, git_repo):
+        """Second POST /api/runs while a run is active → HTTP 409."""
+        conn, token, _ = _start_server(git_repo)
+
+        # Start first run
         r1_status, r1_body = _req(conn, "POST", "/api/runs", token=token, body={
-            "before_ref": str(tmp_path),
-            "after_ref":  str(tmp_path),
+            "before_ref": "base",
+            "after_ref":  "head",
         })
         assert r1_status == 200
         run_id_1 = r1_body["run_id"]
@@ -300,8 +380,8 @@ class TestStartRun:
         got_409 = False
         while time.time() < deadline:
             r2_status, r2_body = _req(conn, "POST", "/api/runs", token=token, body={
-                "before_ref": str(tmp_path),
-                "after_ref":  str(tmp_path),
+                "before_ref": "base",
+                "after_ref":  "head",
             })
             if r2_status == 409:
                 assert r2_body.get("error") == "run_in_progress"
@@ -317,12 +397,12 @@ class TestStartRun:
         if got_409:
             assert True  # already validated above
 
-    def test_run_result_readable_after_completion(self, tmp_path):
+    def test_run_result_readable_after_completion(self, git_repo):
         """After a run finishes, GET /api/runs/{run_id} returns evidence."""
-        conn, token, _ = _start_server(tmp_path)
+        conn, token, _ = _start_server(git_repo)
         r_status, r_body = _req(conn, "POST", "/api/runs", token=token, body={
-            "before_ref": str(tmp_path),
-            "after_ref":  str(tmp_path),
+            "before_ref": "base",
+            "after_ref":  "head",
         })
         assert r_status == 200
         run_id = r_body["run_id"]
@@ -343,24 +423,24 @@ class TestStartRun:
 # ---------------------------------------------------------------------------
 
 class TestProgressSSE:
-    def test_progress_stream_ends_with_done(self, tmp_path):
+    def test_progress_stream_ends_with_done(self, git_repo):
         """
         Start a run, wait for it to complete, then read the SSE replay via a
         raw socket with a timeout so the test does not hang.
         """
         import socket as _socket
-        conn, token, _ = _start_server(tmp_path)
+        conn, token, _ = _start_server(git_repo)
         port = conn.port
 
         # Start a run
         r_status, r_body = _req(conn, "POST", "/api/runs", token=token, body={
-            "before_ref": str(tmp_path),
-            "after_ref":  str(tmp_path),
+            "before_ref": "base",
+            "after_ref":  "head",
         })
         assert r_status == 200
         run_id = r_body["run_id"]
 
-        # Wait for completion (run is fast with empty dirs)
+        # Wait for completion
         deadline = time.time() + 15
         while time.time() < deadline:
             get_status, _ = _req(conn, "GET", f"/api/runs/{run_id}", token=token)
@@ -426,3 +506,37 @@ def _is_valid_uuid4(value: str) -> bool:
         r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
         value.lower()
     ))
+
+
+# ---------------------------------------------------------------------------
+# G4 — the browser opens by itself
+# ---------------------------------------------------------------------------
+
+class TestOpenBrowser:
+    def test_ui_url_carries_token_and_run(self):
+        from bobthereviewer.server import ui_url
+        assert ui_url("127.0.0.1", 7842, "tok") == "http://127.0.0.1:7842/?token=tok"
+        assert ui_url("127.0.0.1", 7842, "tok", "abc") == "http://127.0.0.1:7842/?token=tok&run=abc"
+
+    @pytest.mark.parametrize("no_browser, opened", [(False, True), (True, False)])
+    def test_start_opens_browser_unless_disabled(self, tmp_path, monkeypatch, no_browser, opened):
+        import argparse
+        import webbrowser
+        from bobthereviewer import server
+        urls = []
+        monkeypatch.setattr(webbrowser, "open", urls.append)
+        monkeypatch.setattr(server.BobReviewerServer, "serve_forever", lambda self: (_ for _ in ()).throw(KeyboardInterrupt))
+        args = argparse.Namespace(repo_dir=str(tmp_path), port=0, no_browser=no_browser, run_id="abc")
+        assert server.start(args) == 0
+        assert bool(urls) is opened
+        if opened:
+            assert "token=" in urls[0] and urls[0].endswith("&run=abc")
+
+    def test_run_open_serves_the_new_run(self, git_repo, monkeypatch):
+        from bobthereviewer import server
+        from bobthereviewer.cli import main
+        started = []
+        monkeypatch.setattr(server, "start", lambda args: started.append(args) or 0)
+        assert main(["run", "--repo-dir", str(git_repo), "--before", "base", "--after", "head", "--open"]) == 0
+        run_id = started[0].run_id
+        assert (git_repo / ".bobreviewer" / "runs" / run_id / "evidence.json").exists()

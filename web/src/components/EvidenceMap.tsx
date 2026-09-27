@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState } from 'react'
 import { Background, Controls, MiniMap, Panel, ReactFlow, ReactFlowProvider, type NodeProps } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ChevronDown, ChevronRight, CircleAlert, FileCode, FlaskConical, Folder, FolderClosed, Info, PencilLine, RotateCcw } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleAlert, FileCode, FlaskConical, Folder, FolderClosed, Info, RotateCcw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,18 +9,35 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import {
   LineSwatch, MINIMAP_FROM_NODES, PortHandles, TooltipEdge, UNKNOWN_EDGE_DASH, useAsyncLayout, useFlowColorMode,
 } from '@/components/map-parts'
-import { StatusBadge, STATUS_META, STATUS_PRIORITY } from '@/components/StatusBadge'
+import { StatusBadge, STATUS_META, type EvidenceStatus } from '@/components/StatusBadge'
 import {
-  buildEvidenceMap, type CollapsedFlowNode, type EvidenceFlowNode, type GroupFlowNode, type MapEntry, type MapNode, type TestsFlowNode,
+  buildEvidenceMap, type CollapsedFlowNode, type EvidenceFlowNode, type GroupFlowNode, type MapEntry, type MapNode, type MapRole,
+  type TestsFlowNode,
 } from '@/lib/evidence-map'
 import type { TooltipFlowEdge } from '@/lib/nested-layout'
-import { TONE_CLASSES } from '@/lib/tones'
+import type { Tone } from '@/lib/tones'
 import { cn } from '@/lib/utils'
 import type { Evidence } from '@/types/evidence'
 
+// Two questions, two channels: the box color says what running the code showed,
+// the outline says what the code is. Neither ever encodes the other.
+const FILL: Record<Tone, string> = {
+  danger: 'bg-danger-muted', warning: 'bg-warning-muted', success: 'bg-success-muted', neutral: 'bg-card', info: 'bg-card',
+}
+const OUTLINE: Record<MapRole, string> = {
+  changed: 'border-info', affected: 'border-foreground/25', possible: 'border-dashed border-foreground/40',
+}
+const ROLE_LABEL: Record<MapRole, string> = {
+  changed: 'Your change', affected: 'Calls your change', possible: 'Might call your change',
+}
+
+function RoleTag({ role }: { role: MapRole }) {
+  return <span className={cn('text-xs font-medium', role === 'changed' ? 'text-info' : 'text-muted-foreground')}>{ROLE_LABEL[role]}</span>
+}
+
 function EvidenceNodeCard({ data: { entry, ports } }: NodeProps<EvidenceFlowNode>) {
   return (
-    <Card className={cn('h-24 w-60 cursor-pointer gap-1 border-2 p-2 shadow-sm', TONE_CLASSES[STATUS_META[entry.status].tone])}>
+    <Card className={cn('h-24 w-60 cursor-pointer gap-1 border-2 p-2 shadow-sm', FILL[STATUS_META[entry.status].tone], OUTLINE[entry.role])}>
       <PortHandles ports={ports} />
       <span className="truncate font-mono text-sm font-semibold text-foreground">{entry.symbol}</span>
       <span className="truncate text-xs text-muted-foreground">
@@ -28,9 +45,7 @@ function EvidenceNodeCard({ data: { entry, ports } }: NodeProps<EvidenceFlowNode
       </span>
       <span className="flex flex-wrap items-center gap-2">
         <StatusBadge status={entry.status} />
-        {entry.isChanged && entry.status !== 'changed' ? (
-          <span className="flex items-center gap-1 text-xs font-medium text-info"><PencilLine aria-hidden="true" className="size-3" />Your change</span>
-        ) : null}
+        <RoleTag role={entry.role} />
       </span>
     </Card>
   )
@@ -38,7 +53,7 @@ function EvidenceNodeCard({ data: { entry, ports } }: NodeProps<EvidenceFlowNode
 
 function TestsNodeCard({ data }: NodeProps<TestsFlowNode>) {
   return (
-    <Card className={cn('h-24 w-60 cursor-pointer gap-1 border-2 border-dashed p-2 shadow-sm', TONE_CLASSES.neutral)}>
+    <Card className={cn('h-24 w-60 cursor-pointer gap-1 border-2 bg-card p-2 shadow-sm', OUTLINE.affected)}>
       <PortHandles ports={data.ports} />
       <span className="flex items-center gap-1 text-sm font-semibold text-foreground">
         <FlaskConical aria-hidden="true" className="size-4" />
@@ -91,7 +106,7 @@ function FolderGroup({ data }: NodeProps<GroupFlowNode>) {
 
 function CollapsedCard({ data }: NodeProps<CollapsedFlowNode>) {
   return (
-    <Card className={cn('h-24 w-60 cursor-pointer gap-1 border-2 p-2 shadow-sm', TONE_CLASSES[STATUS_META[data.status].tone])}>
+    <Card className={cn('h-24 w-60 cursor-pointer gap-1 border-2 p-2 shadow-sm', FILL[STATUS_META[data.status].tone], OUTLINE.affected)}>
       <PortHandles ports={data.ports} />
       <span className="flex items-center gap-1 text-sm font-semibold text-foreground">
         <FolderToggle path={data.path} label={data.label} open={false} />
@@ -113,26 +128,70 @@ const nodeTypes = {
 }
 const edgeTypes = { call: TooltipEdge }
 
+function SampleBox({ role, label }: { role: MapRole; label: string }) {
+  return (
+    <li className="flex items-center gap-3 text-sm">
+      <span aria-hidden="true" className={cn('h-6 w-10 shrink-0 rounded-md border-2 bg-card', OUTLINE[role])} />
+      {label}
+    </li>
+  )
+}
+
+function LegendGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-medium">{title}</h3>
+      <ul className="space-y-2">{children}</ul>
+    </section>
+  )
+}
+
+const COLOR_MEANING: [EvidenceStatus, string][] = [
+  ['behavior_differs', 'Same input, different output before and after. You decide if that was intended.'],
+  ['same', 'Every tried input gave the same output.'],
+  ['inconclusive', 'The probe could not run on one side (for example, an import broke).'],
+  ['needs_probe', 'Not checked yet, and worth checking: nobody reviewing the diff would look here.'],
+  ['not_run', 'Not checked, and the analysis did not flag it (for example, only tests call it, or it is in the diff).'],
+]
+
 function LegendSheet() {
   return (
     <Sheet>
       <SheetTrigger asChild>
         <Button variant="outline" size="sm"><Info aria-hidden="true" />Legend</Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-sm">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>How to read the map</SheetTitle>
           <SheetDescription>
-            Callers on the left, the changed code on the right, grouped by file. Colors show what running the
-            probes found: red differs, amber uncertain, green same, grey not checked. Blue marks your change.
-            Drag boxes to rearrange; select one for details; hover an arrow for its call site.
+            Each box is a function. Arrows point from a function to the code it calls, so your change sits on the
+            right and the code that depends on it on the left.
           </SheetDescription>
         </SheetHeader>
-        <ul aria-label="Legend" className="space-y-3 px-4 pb-4">
-          {STATUS_PRIORITY.map((status) => <li key={status}><StatusBadge status={status} /></li>)}
-          <LineSwatch label="Resolved call" />
-          <LineSwatch label="Unknown edge (not resolvable statically)" dash={UNKNOWN_EDGE_DASH} />
-        </ul>
+        <div className="space-y-6 px-4 pb-6">
+          <p className="rounded-md bg-muted p-3 text-sm">
+            <span className="font-medium">What's a probe?</span> A small file naming one function and a few example
+            inputs. The tool runs those inputs on the old and the new code and compares the outputs. You (or Bob)
+            write probes for the callers worth checking.
+          </p>
+          <LegendGroup title="Outline: what the code is">
+            <SampleBox role="changed" label="Your change: a function this diff edits" />
+            <SampleBox role="affected" label="Calls your change: untouched, but may now behave differently" />
+            <SampleBox role="possible" label="Might call your change: a dynamic call the tool can't follow" />
+          </LegendGroup>
+          <LegendGroup title="Color: what running it showed">
+            {COLOR_MEANING.map(([status, meaning]) => (
+              <li key={status} className="space-y-1 text-sm">
+                <StatusBadge status={status} />
+                <p className="text-muted-foreground">{meaning}</p>
+              </li>
+            ))}
+          </LegendGroup>
+          <LegendGroup title="Lines">
+            <LineSwatch label="Calls: the tool read this call in the code" />
+            <LineSwatch label="Might call: decided at runtime, so it can't be confirmed" dash={UNKNOWN_EDGE_DASH} />
+          </LegendGroup>
+        </div>
       </SheetContent>
     </Sheet>
   )
@@ -152,7 +211,10 @@ function DetailsSheet({ evidence, entry, onClose }: { evidence: Evidence; entry:
               <SheetDescription className="break-all">
                 {entry.path}{entry.line ? `:${entry.line}` : ''}{entry.isTest ? ' · test code' : ''}
               </SheetDescription>
-              <StatusBadge status={entry.status} className="w-fit" />
+              <span className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={entry.status} />
+                <RoleTag role={entry.role} />
+              </span>
             </SheetHeader>
             <section aria-label="Probe results" className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
               <h3 className="font-medium">Probe results</h3>

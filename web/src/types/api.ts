@@ -11,6 +11,19 @@ export interface RunSummary {
   triage_category: string
 }
 
+export interface RepoInfo {
+  repo: string
+  /** "HEAD" when detached. */
+  branch: string
+  base_branch: string
+}
+
+export interface GitRef {
+  name: string
+  sha: string
+  kind: 'branch' | 'remote' | 'tag'
+}
+
 export interface StartRunRequest {
   before_ref: string
   after_ref: string
@@ -20,6 +33,8 @@ export interface StartRunRequest {
 
 export interface StartRunResponse {
   run_id: string
+  /** Uncommitted files the review leaves out; a web run is never refused for them. */
+  warnings: string[]
 }
 
 export interface DecideRequest {

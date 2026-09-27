@@ -10,6 +10,8 @@ import type {
   StartRunResponse,
   DecideRequest,
   DecideResponse,
+  GitRef,
+  RepoInfo,
   ProgressEvent,
 } from '@/types/api'
 import { getToken } from '@/lib/mode'
@@ -34,6 +36,14 @@ export function listRuns(): Promise<RunSummary[]> {
 
 export function getRun(runId: string): Promise<Evidence> {
   return apiFetch<Evidence>(`/api/runs/${encodeURIComponent(runId)}`)
+}
+
+export function getRepo(): Promise<RepoInfo> {
+  return apiFetch<RepoInfo>('/api/repo')
+}
+
+export function listRefs(): Promise<GitRef[]> {
+  return apiFetch<GitRef[]>('/api/refs')
 }
 
 export function startRun(body: StartRunRequest): Promise<StartRunResponse> {
