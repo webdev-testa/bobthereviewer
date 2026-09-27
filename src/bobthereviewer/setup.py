@@ -55,10 +55,25 @@ def _detect_base_branch(repo_root: Path) -> str:
 
 
 def _detect_test_dir(repo_root: Path) -> str | None:
+    """The folder holding the project's tests, or None when there is none.
+
+    Checks the usual spots first, then the tracked files (so `.venv/` and `node_modules/` never
+    count) for the `tests`/`test` folder with the most test files, e.g. `backend/tests`.
+    """
     for candidate in _TEST_DIR_CANDIDATES:
         if (repo_root / candidate).is_dir():
             return candidate
-    return None
+    try:
+        tracked = _git(["ls-files", "*.py"], cwd=repo_root).splitlines()
+    except SnapshotError:
+        return None
+    counts: dict[str, int] = {}
+    for path in tracked:
+        folder, _, name = path.rpartition("/")
+        if folder.rsplit("/", 1)[-1] in ("tests", "test") and (name.startswith("test_") or name.endswith("_test.py")):
+            counts[folder] = counts.get(folder, 0) + 1
+    # Most test files wins; the shallower folder breaks a tie.
+    return min(counts, key=lambda f: (-counts[f], f.count("/")), default=None)
 
 
 def _detect_python_env(repo_root: Path) -> str:
@@ -82,13 +97,17 @@ def _detect_remote_url(repo_root: Path) -> str | None:
 
 def detect_config(repo_root: Path) -> dict[str, str]:
     """Detect portable setup defaults before asking questions or writing files."""
-    return {
+    config = {
         "schema_version": "1",
         "base_branch": _detect_base_branch(repo_root),
-        "test_dir": _detect_test_dir(repo_root) or "tests",
         "python_env": _detect_python_env(repo_root),
         "probe_dir": ".bobreviewer/probes",
     }
+    # Never record a test folder that does not exist; test_dir is optional in the config schema.
+    test_dir = _detect_test_dir(repo_root)
+    if test_dir:
+        config["test_dir"] = test_dir
+    return config
 
 @dataclass
 class SetupResult:

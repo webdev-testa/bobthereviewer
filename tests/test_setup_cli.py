@@ -23,6 +23,7 @@ from bobthereviewer.cli import main, build_parser
 def test_interactive_init_defaults_and_overrides(tmp_path, monkeypatch, capsys, answers, expected):
     repo = tmp_path / "repo"
     init_repo(repo)
+    (repo / "tests").mkdir()
     python = repo / ".venv/Scripts/python.exe"
     python.parent.mkdir(parents=True)
     python.touch()
@@ -96,7 +97,7 @@ def test_init_without_prompts_and_rerun_keeps_bytes(tmp_path, monkeypatch, capsy
     assert main(["init", "--repo-dir", str(repo), *flags]) == 0
     path = repo / ".bobreviewer/config.json"
     config = json.loads(path.read_text())
-    config.pop("test_dir")
+    config.pop("test_dir", None)
     path.write_text(json.dumps(config, separators=(",", ":")) + "\n")
     before = {p: p.read_bytes() for p in (path, repo / ".gitignore")}
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
@@ -673,3 +674,18 @@ def test_doctor_web_bundle_check(tmp_path, monkeypatch):
     assert bundle_missing is not None
     assert bundle_missing.status == "missing"
 
+
+def test_init_detects_a_nested_test_folder_and_never_invents_one(tmp_path):
+    from bobthereviewer.setup import detect_config
+
+    nested = tmp_path / "nested"
+    init_repo(nested)
+    commit_files(nested, {"backend/tests/test_api.py": "def test_a():\n    pass\n",
+                          "backend/tests/test_db.py": "def test_b():\n    pass\n",
+                          "backend/app.py": "x = 1\n"}, "app")
+    assert detect_config(nested)["test_dir"] == "backend/tests"
+
+    bare = tmp_path / "bare"
+    init_repo(bare)
+    commit_files(bare, {"app.py": "x = 1\n"}, "app")
+    assert "test_dir" not in detect_config(bare)
