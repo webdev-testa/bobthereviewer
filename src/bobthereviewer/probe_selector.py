@@ -39,7 +39,10 @@ class SelectedProbe:
 
 
 def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+    # Git checks text out with CRLF on Windows (core.autocrlf) and LF on Linux, so the same
+    # committed probe would hash differently locally and in CI, and a decision recorded on
+    # Windows would never match its case in the PR comment. Hash the LF form.
+    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
 
 
 def _scan_probe_dirs(worktree_root: str) -> dict[str, bytes]:
