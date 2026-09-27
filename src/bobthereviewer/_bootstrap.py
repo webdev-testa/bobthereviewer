@@ -1,5 +1,5 @@
 """
-bobreviewer._bootstrap
+bobthereviewer._bootstrap
 ======================
 Runs inside a worktree subprocess.  Receives a JSON payload on stdin,
 inserts the worktree root (and optionally src/) onto sys.path, imports the
@@ -23,7 +23,7 @@ Exit code 0 in all three cases above.
 Exit code 1 only on infrastructure failure (bad stdin JSON, missing keys).
 
 This module intentionally uses only the Python standard library so that it
-can run inside a worktree subprocess that has not installed bobreviewer.
+can run inside a worktree subprocess that has not installed bobthereviewer.
 """
 
 import importlib

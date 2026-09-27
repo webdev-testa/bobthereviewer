@@ -1,4 +1,4 @@
-"""Unit tests for bobreviewer._bootstrap (invoked as a subprocess)."""
+"""Unit tests for bobthereviewer._bootstrap (invoked as a subprocess)."""
 
 import json
 import os
@@ -15,7 +15,7 @@ PYTHON = sys.executable
 def _run_bootstrap(payload: dict) -> dict:
     """Invoke the bootstrap as a subprocess; return the parsed stdout JSON."""
     result = subprocess.run(
-        [PYTHON, "-m", "bobreviewer._bootstrap"],
+        [PYTHON, "-m", "bobthereviewer._bootstrap"],
         input=json.dumps(payload).encode(),
         capture_output=True,
         timeout=10,
@@ -174,7 +174,7 @@ class TestBootstrapCallError:
 class TestBootstrapInfraFailure:
     def test_bad_stdin_exits_nonzero(self):
         result = subprocess.run(
-            [PYTHON, "-m", "bobreviewer._bootstrap"],
+            [PYTHON, "-m", "bobthereviewer._bootstrap"],
             input=b"not json at all",
             capture_output=True,
             timeout=10,

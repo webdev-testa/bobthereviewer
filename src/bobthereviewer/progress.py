@@ -1,5 +1,5 @@
 """
-bobreviewer.progress
+bobthereviewer.progress
 ====================
 Progress event emitter shared by all runner modules and the local server.
 
@@ -9,7 +9,7 @@ Server mode → writes NDJSON to stdout AND appends to an ``events.jsonl``
 
 Usage::
 
-    from bobreviewer.progress import make_emitter, replay_events
+    from bobthereviewer.progress import make_emitter, replay_events
 
     emit = make_emitter(run_id="<uuid>", events_path="/path/to/events.jsonl", mode="cli")
     emit("triage", "started", "Classifying diff")

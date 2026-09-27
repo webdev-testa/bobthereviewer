@@ -1,5 +1,5 @@
 """
-Tests for bobreviewer.probe_runner (ST 6).
+Tests for bobthereviewer.probe_runner (ST 6).
 
 Unit tests use temp directories with minimal fixture functions.
 The integration test (marked with pytest.mark.integration) uses the
@@ -16,8 +16,8 @@ from typing import Callable
 
 import pytest
 
-from bobreviewer.probe_runner import run_probes
-from bobreviewer.progress import make_emitter
+from bobthereviewer.probe_runner import run_probes
+from bobthereviewer.progress import make_emitter
 
 PYTHON = sys.executable
 

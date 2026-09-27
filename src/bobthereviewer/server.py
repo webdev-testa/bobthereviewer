@@ -1,5 +1,5 @@
 """
-bobreviewer.server
+bobthereviewer.server
 ==================
 Localhost-only HTTP server that powers the developer UI.
 
@@ -32,6 +32,7 @@ import json
 import queue
 import re
 import secrets
+import sys
 import threading
 import traceback
 import urllib.parse
@@ -41,14 +42,14 @@ from http.server import HTTPServer
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from bobreviewer.run_store import (
+from bobthereviewer.run_store import (
     RunNotFoundError,
     create_run_dir,
     get_run,
     list_runs,
     save_evidence,
 )
-from bobreviewer.progress import make_emitter, replay_events
+from bobthereviewer.progress import make_emitter, replay_events
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +150,7 @@ class BobReviewerServer(HTTPServer):
 # ---------------------------------------------------------------------------
 
 class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
-    """HTTP request handler for the bobreviewer developer UI server."""
+    """HTTP request handler for the bobthereviewer developer UI server."""
 
     # These are accessed via self.server (a BobReviewerServer instance)
     @property
@@ -393,8 +394,8 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
                 _emit("triage", "completed", "Category: code")
 
                 # ---- probe runner ----
-                from bobreviewer.probe_runner import run_probes
-                from bobreviewer.test_runner import run_tests
+                from bobthereviewer.probe_runner import run_probes
+                from bobthereviewer.test_runner import run_tests
 
                 # Resolve prior report if supplied
                 prior_report = None
@@ -558,7 +559,7 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
 
         # Delegate to Lane 4's decision validation service
         try:
-            from bobreviewer.decisions import validate_and_write_decision  # type: ignore[import]
+            from bobthereviewer.decisions import validate_and_write_decision  # type: ignore[import]
             file_path, git_command = validate_and_write_decision(
                 run_id, symbol, case_id, verdict, rationale,
                 base_output, head_output, evidence,
@@ -658,3 +659,51 @@ def make_server(
         token=token,
     )
     return httpd, token
+
+
+# ---------------------------------------------------------------------------
+# Lane 1 CLI integration — `cli.cmd_ui` calls `server.start(args)`
+# ---------------------------------------------------------------------------
+
+def start(args: Any = None, port: int | None = None) -> int:
+    """Serve the local developer UI and block until interrupted.
+
+    The CLI (Lane 1) owns argument parsing and calls this; the server owns binding,
+    authentication and confinement. Binds to 127.0.0.1 only and prints the launch token the
+    browser must present, so a page on another origin cannot drive the local API.
+    """
+    import argparse
+    import os
+    import webbrowser
+
+    if args is None:
+        args = argparse.Namespace()
+    repo_dir = str(getattr(args, "repo_dir", None) or getattr(args, "repo", None) or os.getcwd())
+    if port is None:
+        port = int(getattr(args, "port", None) or 5173)
+
+    configured = getattr(args, "python", None)
+    if configured:
+        python_exe = str(configured)
+    else:
+        candidate = Path(repo_dir) / ".venv" / "bin" / "python"
+        python_exe = str(candidate) if candidate.exists() else sys.executable
+
+    httpd, token = make_server(repo_dir, python_exe, port)
+    host, bound_port = httpd.server_address[:2]
+    url = f"http://{host}:{bound_port}/?token={token}"
+    print(f"bobthereviewer ui — serving {repo_dir}")
+    print(f"  open: {url}")
+    print("  local only (127.0.0.1); press Ctrl+C to stop.")
+    if getattr(args, "open", False):
+        try:
+            webbrowser.open(url)
+        except Exception:  # noqa: BLE001 - a browser that will not open is not fatal
+            pass
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopping.")
+    finally:
+        httpd.server_close()
+    return 0

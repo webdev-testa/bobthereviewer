@@ -1,4 +1,4 @@
-"""Tests for bobreviewer.test_runner (ST 8)."""
+"""Tests for bobthereviewer.test_runner (ST 8)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from bobreviewer.test_runner import (
+from bobthereviewer.test_runner import (
     _compute_frozen_suite_hash,
     _discover_test_files,
     run_tests,

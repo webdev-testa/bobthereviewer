@@ -1,5 +1,5 @@
 """
-Tests for bobreviewer.server (ST 13 — runs/progress endpoints, ST 14 — security layer).
+Tests for bobthereviewer.server (ST 13 — runs/progress endpoints, ST 14 — security layer).
 
 Uses http.client against a real server started in a background thread so we
 exercise the actual HTTP stack.  Each test class starts its own server to
@@ -19,8 +19,8 @@ from typing import Optional
 
 import pytest
 
-from bobreviewer.run_store import create_run_dir, save_evidence
-from bobreviewer.server import make_server
+from bobthereviewer.run_store import create_run_dir, save_evidence
+from bobthereviewer.server import make_server
 
 
 PYTHON = sys.executable

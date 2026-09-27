@@ -1,4 +1,4 @@
-"""Tests for bobreviewer.run_store (ST 12)."""
+"""Tests for bobthereviewer.run_store (ST 12)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from bobreviewer.run_store import (
+from bobthereviewer.run_store import (
     RunNotFoundError,
     create_run_dir,
     get_run,

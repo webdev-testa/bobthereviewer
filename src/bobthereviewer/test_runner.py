@@ -1,5 +1,5 @@
 """
-bobreviewer.test_runner
+bobthereviewer.test_runner
 =======================
 Runs the frozen base test suite against both worktrees.
 

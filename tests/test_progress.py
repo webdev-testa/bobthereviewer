@@ -1,4 +1,4 @@
-"""Tests for bobreviewer.progress (ST 11)."""
+"""Tests for bobthereviewer.progress (ST 11)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from bobreviewer.progress import make_emitter, replay_events
+from bobthereviewer.progress import make_emitter, replay_events
 
 
 RUN_ID = "00000000-0000-4000-8000-000000000001"

@@ -1,4 +1,4 @@
-"""Tests for bobreviewer.probe_selector (ST 5)."""
+"""Tests for bobthereviewer.probe_selector (ST 5)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from bobreviewer.probe_selector import SelectedProbe, select_probes, _sha256
+from bobthereviewer.probe_selector import SelectedProbe, select_probes, _sha256
 
 
 PROBE_CONTENT_A = json.dumps({

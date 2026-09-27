@@ -1,5 +1,5 @@
 """
-bobreviewer.probe_selector
+bobthereviewer.probe_selector
 ==========================
 Determines which probe files to run and which bytes to use on each side,
 applying the frozen probe selection rule from the spec:

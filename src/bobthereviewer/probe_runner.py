@@ -1,5 +1,5 @@
 """
-bobreviewer.probe_runner
+bobthereviewer.probe_runner
 ========================
 Ties together the probe selector, executor, and nondeterminism check to
 produce the ``probe_results[]`` list that Lane 1 writes into ``evidence.json``.
@@ -17,8 +17,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Optional
 
-from bobreviewer.executor import run_case_with_repeat_check
-from bobreviewer.probe_selector import SelectedProbe, select_probes
+from bobthereviewer.executor import run_case_with_repeat_check
+from bobthereviewer.probe_selector import SelectedProbe, select_probes
 
 
 def _is_exception_record(value: Any) -> bool:

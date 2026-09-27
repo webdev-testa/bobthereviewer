@@ -1,5 +1,5 @@
 """
-bobreviewer.run_store
+bobthereviewer.run_store
 =====================
 Manages the saved-run directory under ``.bobreviewer/runs/<run_id>/``.
 

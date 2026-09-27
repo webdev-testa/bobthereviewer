@@ -1,4 +1,4 @@
-"""Tests for bobreviewer.executor (ST 3 + ST 4)."""
+"""Tests for bobthereviewer.executor (ST 3 + ST 4)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from bobreviewer.executor import (
+from bobthereviewer.executor import (
     CaseExecutionResult,
     RepeatedRunResult,
     run_case,
