@@ -421,3 +421,12 @@ def test_changed_function_to_dict_shape(tmp_path):
             assert "resolution" in caller
             assert caller["resolution"] == "resolved"
             assert "via" in caller
+
+
+def test_find_changed_symbols_marks_readers_of_a_changed_constant(tmp_path):
+    base, head = make_worktree_pair(tmp_path,
+        {"pricing.py": "TAX_RATE = 0.10\ndef calculate_price(p):\n    return p * (1 + TAX_RATE)\ndef label():\n    return 'price'\n"},
+        {"pricing.py": "TAX_RATE = 0.11\ndef calculate_price(p):\n    return p * (1 + TAX_RATE)\ndef label():\n    return 'price'\n"},
+    )
+    symbols = [s for s, _ in _find_changed_symbols(base, head, ["pricing.py"])]
+    assert symbols == ["pricing.calculate_price"]
