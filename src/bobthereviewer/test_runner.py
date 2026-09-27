@@ -249,11 +249,19 @@ def _run_pytest(
                 }
             }
     except Exception as exc:
+        # Never interpolate the raw exception: FileNotFoundError embeds the absolute
+        # interpreter path, and published evidence must carry repo-relative paths only. Report
+        # the exception type, which is the part that helps, and let `doctor` show the path.
+        # An interpreter that cannot be launched is also an interpreter that cannot provide
+        # pytest, so the wording stays accurate to what was observed.
         rel_py = _display_interpreter(python_exe, worktree_path)
         return {
             "<pytest>": {
                 "status": "error",
-                "message": f"pytest is not installed in {rel_py} ({exc})",
+                "message": (
+                    f"pytest is not installed in {rel_py} or cannot be run "
+                    f"({type(exc).__name__})"
+                ),
             }
         }
 

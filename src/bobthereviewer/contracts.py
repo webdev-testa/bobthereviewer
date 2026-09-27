@@ -51,6 +51,7 @@ _SCHEMA_FILES = {
     "decision":        _CONTRACTS_DIR / "decision.schema.json",
     "progress_event":  _CONTRACTS_DIR / "progress-event.schema.json",
     "run_metadata":    _CONTRACTS_DIR / "run-metadata.schema.json",
+    "repo_map":        _CONTRACTS_DIR / "repo-map.schema.json",
 }
 
 _SCHEMA_CACHE: dict[str, Any] = {}
