@@ -13,8 +13,8 @@ Usage:
         --ci-run-url https://github.com/...
 
 Depends on:
-    app/report.py       render_markdown(evidence) -> str   [Lane 3]
-    app/html_report.py  generate_html(evidence)   -> str   [Lane 3]
+    bobthereviewer/report.py       render_markdown(evidence) -> str   [Lane 3]
+    bobthereviewer/html_report.py  generate_html(evidence)   -> str   [Lane 3]
 
 If Lane 3's modules are not yet available, this script falls back to a
 minimal stub renderer so the CI workflow remains functional.
@@ -31,7 +31,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
 
 def _stub_render_markdown(evidence: dict) -> str:
-    """Minimal Markdown renderer used as fallback when app/report.py is unavailable."""
+    """Minimal Markdown renderer used as fallback when bobthereviewer/report.py is unavailable."""
     fixture_warning = "⚠️ **FIXTURE — not real evidence**\n\n" if evidence.get("fixture") else ""
     base_ref = evidence.get("base_ref", "?")
     head_ref = evidence.get("head_ref", "?")
@@ -94,7 +94,7 @@ def _stub_render_markdown(evidence: dict) -> str:
 
 
 def _stub_generate_html(evidence: dict) -> str:
-    """Minimal HTML viewer used as fallback when app/html_report.py is unavailable."""
+    """Minimal HTML viewer used as fallback when bobthereviewer/html_report.py is unavailable."""
     import html as html_module
     md = _stub_render_markdown(evidence)
     safe = html_module.escape(md)
@@ -144,17 +144,17 @@ def main() -> None:
 
     # Try to use Lane 3's real renderers; fall back to stubs if not yet available
     try:
-        from app.report import render_markdown
+        from bobthereviewer.report import render_markdown
         md = render_markdown(evidence)
     except ImportError:
-        print("WARNING: app/report.py not available — using stub Markdown renderer", file=sys.stderr)
+        print("WARNING: bobthereviewer/report.py not available — using stub Markdown renderer", file=sys.stderr)
         md = _stub_render_markdown(evidence)
 
     try:
-        from app.html_report import generate_html
+        from bobthereviewer.html_report import generate_html
         html_content = generate_html(evidence)
     except ImportError:
-        print("WARNING: app/html_report.py not available — using stub HTML renderer", file=sys.stderr)
+        print("WARNING: bobthereviewer/html_report.py not available — using stub HTML renderer", file=sys.stderr)
         html_content = _stub_generate_html(evidence)
 
     out_md = pathlib.Path(args.out_md)

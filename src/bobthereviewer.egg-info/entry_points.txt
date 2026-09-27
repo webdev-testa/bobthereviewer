@@ -1,2 +1,0 @@
-[console_scripts]
-bobreviewer = bobthereviewer.cli:main

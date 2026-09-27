@@ -1,7 +1,7 @@
 """
 tests/test_decisions.py — Lane 4 (D)
 
-Unit tests for app/decisions.py:
+Unit tests for bobthereviewer.decisions:
   - validate_and_save: valid intended, short rationale rejection, unintended without rationale
   - lookup: empty dir, matching record, decoy-rejection (same symbol different file_path)
 """
@@ -13,7 +13,7 @@ import pytest
 # Ensure the project root is importable when running from any directory
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
-from app.decisions import (
+from bobthereviewer.decisions import (
     validate_and_save,
     lookup,
     validate_and_build_decision,
