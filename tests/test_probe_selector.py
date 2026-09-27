@@ -163,3 +163,9 @@ class TestOrdering:
         base = tmp_path / "base"; base.mkdir()
         head = tmp_path / "head"; head.mkdir()
         assert select_probes(str(base), str(head)) == []
+
+
+def test_probe_hash_ignores_line_endings():
+    """A probe checked out with CRLF (Windows) hashes like the LF copy CI sees."""
+    lf = b'{\n  "target": "invoice.calculate_invoice"\n}\n'
+    assert _sha256(lf.replace(b"\n", b"\r\n")) == _sha256(lf)
