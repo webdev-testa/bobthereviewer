@@ -689,3 +689,11 @@ def test_init_detects_a_nested_test_folder_and_never_invents_one(tmp_path):
     init_repo(bare)
     commit_files(bare, {"app.py": "x = 1\n"}, "app")
     assert "test_dir" not in detect_config(bare)
+
+
+def test_version_flag_names_the_installed_release(capsys):
+    from importlib.metadata import version
+    with pytest.raises(SystemExit) as exit_info:
+        main(["--version"])
+    assert exit_info.value.code == 0
+    assert capsys.readouterr().out.strip() == f"bobthereviewer {version('bobthereviewer')}"

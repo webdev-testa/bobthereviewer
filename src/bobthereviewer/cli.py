@@ -437,11 +437,21 @@ def cmd_ui(args: argparse.Namespace) -> int:
 # Argument parser
 # ---------------------------------------------------------------------------
 
+def _installed_version() -> str:
+    """The version pip or uv installed, so `--version` names the release a user actually has."""
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        return version("bobthereviewer")
+    except PackageNotFoundError:
+        return "unknown (not installed as a package)"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bobreviewer",
         description="Find what a code change actually affects and whether the difference was intentional.",
     )
+    parser.add_argument("--version", action="version", version=f"bobthereviewer {_installed_version()}")
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
 
     # ---- init ----
