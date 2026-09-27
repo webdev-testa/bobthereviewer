@@ -4,14 +4,17 @@ Markdown report renderer for bobthereviewer.
 render_markdown(evidence: dict) -> str
 
 Produces a GitHub-flavoured Markdown string suitable for PR comments
-and terminal output. Reads evidence.json as a plain dict — does not
-import any other bobreviewer module.
+and terminal output. Reads evidence.json as a plain dict; the only tool
+import is the shared test-caller check, so tests are grouped the same way
+here as in the analysis.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
 from typing import Any
+
+from bobthereviewer.analysis import is_test_caller
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -113,7 +116,10 @@ def render_markdown(evidence: dict) -> str:  # noqa: C901 (complexity acceptable
             a(f"#### `{fn['symbol']}` — `{fn['file_path']}`")
             a("")
 
-            callers = fn.get("callers", [])
+            all_callers = fn.get("callers", [])
+            # Test callers are how the change is already checked, not code it affects: one line.
+            tests = [c for c in all_callers if is_test_caller(c.get("file_path", ""), c.get("symbol", ""))]
+            callers = [c for c in all_callers if c not in tests]
             if callers:
                 a("**Callers**")
                 a("")
@@ -123,6 +129,10 @@ def render_markdown(evidence: dict) -> str:  # noqa: C901 (complexity acceptable
                     in_diff = "Yes" if c.get("in_diff") else "**No — outside diff**"
                     note = "Needs a probe" if c.get("needs_probe") else ""
                     a(f"| `{c['symbol']}` | `{c['file_path']}` | {c['line']} | {in_diff} | {note} |")
+                a("")
+            if tests:
+                names = sorted({c["symbol"].rsplit(".", 1)[-1] for c in tests})
+                a(f"**{len(names)} test(s) call it:** " + ", ".join(f"`{n}`" for n in names))
                 a("")
 
             unknown = fn.get("unknown_references", [])
