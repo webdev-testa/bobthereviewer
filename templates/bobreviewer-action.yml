@@ -9,7 +9,7 @@ permissions:
   pull-requests: write
 
 env:
-  TOOL_REF: v0.1.0
+  TOOL_REF: v0.1.1
 
 jobs:
   behavior-review:
