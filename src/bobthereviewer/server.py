@@ -22,7 +22,7 @@ Endpoints:
   GET  /api/runs/{run_id}               → evidence.json for run
   POST /api/runs                        → start a new run (returns {run_id} immediately)
   GET  /api/runs/{run_id}/progress      → SSE progress stream
-  POST /api/decide                      → save a decision (delegates to Lane 4)
+  POST /api/decide                      → save a proposed decision (same code path as `bobreviewer decide`)
   GET  /                                → serve developer UI frontend
 """
 
@@ -50,6 +50,7 @@ from bobthereviewer.run_store import (
     list_runs,
     save_evidence,
 )
+from bobthereviewer.decide_cmd import DecideError, decide_from_run
 from bobthereviewer.progress import make_emitter, replay_events
 
 
@@ -522,7 +523,7 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
                 return
 
     # ------------------------------------------------------------------
-    # Decision endpoint (POST /api/decide) — stub until Lane 4 delivers
+    # Decision endpoint (POST /api/decide)
     # ------------------------------------------------------------------
 
     def _handle_decide(self) -> None:
@@ -544,45 +545,12 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(400, {"error": "invalid run_id format"})
             return
 
-        # Load evidence from the saved run
         try:
-            evidence = get_run(self.repo_dir, run_id)
-        except RunNotFoundError:
-            self._send_json(404, {"error": "run not found"})
+            rel_path, git_command = decide_from_run(Path(self.repo_dir), run_id, symbol, case_id, verdict, rationale)
+        except DecideError as exc:
+            self._send_json(exc.status, {"error": str(exc)})
             return
-
-        # Find the case by (symbol, case_id)
-        base_output = None
-        head_output = None
-        found = False
-        for pr in evidence.get("probe_results", []):
-            if pr.get("target") == symbol:
-                for c in pr.get("cases", []):
-                    if c.get("id") == case_id:
-                        base_output = c.get("base_output")
-                        head_output = c.get("head_output")
-                        found = True
-                        break
-            if found:
-                break
-
-        if not found:
-            self._send_json(400, {"error": f"case {case_id!r} for symbol {symbol!r} not found"})
-            return
-
-        # Delegate to Lane 4's decision validation service
-        try:
-            from bobthereviewer.decisions import validate_and_write_decision  # type: ignore[import]
-            file_path, git_command = validate_and_write_decision(
-                run_id, symbol, case_id, verdict, rationale,
-                base_output, head_output, evidence,
-            )
-            self._send_json(200, {"file_path": file_path, "git_command": git_command})
-        except ImportError:
-            # Lane 4 not yet available
-            self._send_json(503, {"error": "decision service not available (Lane 4 pending)"})
-        except Exception as exc:
-            self._send_json(422, {"error": str(exc)})
+        self._send_json(200, {"file_path": rel_path.as_posix(), "git_command": git_command})
 
     # ------------------------------------------------------------------
     # Static asset serving (GET /)
