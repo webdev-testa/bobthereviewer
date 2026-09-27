@@ -51,9 +51,9 @@ def make_emitter(
     run_id: str,
     events_path: Optional[str] = None,
     mode: Literal["cli", "server"] = "cli",
-) -> Callable[[str, str, str], None]:
+) -> Callable[[str, str, str], dict]:
     """
-    Return an ``emit(step, status, message)`` callable.
+    Return an ``emit(step, status, message)`` callable that also returns the event it wrote.
 
     Parameters
     ----------
@@ -68,7 +68,7 @@ def make_emitter(
     """
     _lock = threading.Lock()
 
-    def emit(step: str, status: str, message: str) -> None:
+    def emit(step: str, status: str, message: str) -> dict:
         if step not in _VALID_STEPS:
             raise ValueError(f"invalid step: {step!r}; must be one of {sorted(_VALID_STEPS)}")
         if status not in _VALID_STATUSES:
@@ -90,6 +90,7 @@ def make_emitter(
             if mode == "server" and events_path:
                 with open(events_path, "a", encoding="utf-8") as fh:
                     fh.write(line + "\n")
+        return event
 
     return emit
 

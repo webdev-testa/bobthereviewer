@@ -540,3 +540,24 @@ class TestOpenBrowser:
         assert main(["run", "--repo-dir", str(git_repo), "--before", "base", "--after", "head", "--open"]) == 0
         run_id = started[0].run_id
         assert (git_repo / ".bobreviewer" / "runs" / run_id / "evidence.json").exists()
+
+
+class TestProgressNoDuplicates:
+    def test_live_stream_sends_each_event_once(self, git_repo):
+        import socket as _socket
+        conn, token, _ = _start_server(git_repo)
+        _, body = _req(conn, "POST", "/api/runs", token=token, body={"before_ref": "base", "after_ref": "head"})
+        raw = _socket.create_connection(("127.0.0.1", conn.port), timeout=60)
+        raw.sendall((f"GET /api/runs/{body['run_id']}/progress HTTP/1.1\r\nHost: localhost\r\n"
+                     f"Authorization: Bearer {token}\r\nConnection: close\r\n\r\n").encode())
+        data = b""
+        while b'"step":"done"' not in data and b'"step":"error"' not in data:
+            chunk = raw.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+        raw.close()
+        events = [line[5:].strip() for line in data.decode(errors="replace").splitlines() if line.startswith("data:")]
+        assert events, "no progress events received"
+        assert len(events) == len(set(events)), "an event was sent twice"
+        assert sum('"step":"triage","status":"started"' in e for e in events) == 1

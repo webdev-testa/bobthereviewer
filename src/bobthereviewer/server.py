@@ -39,7 +39,6 @@ import sys
 import threading
 import urllib.parse
 import uuid
-from datetime import datetime, timezone
 from http.server import HTTPServer
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -86,10 +85,6 @@ def _is_safe_repo_path(value: str) -> bool:
     if ".." in parts:
         return False
     return True
-
-
-def _now_iso() -> str:
-    return datetime.now(tz=timezone.utc).isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -446,12 +441,10 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
         def _run_thread() -> None:
             emit = make_emitter(run_id=run_id, events_path=str(run_dir / "events.jsonl"), mode="server")
 
-            # Every step goes to events.jsonl (late SSE clients replay it) and to the live SSE queue.
+            # The identical event goes to events.jsonl (late SSE clients replay it) and to the
+            # live queue, so the stream can drop the copies a client already got from the replay.
             def _emit(step: str, status: str, message: str) -> None:
-                emit(step, status, message)
-                state.put_event(run_id, {
-                    "run_id": run_id, "step": step, "status": status, "message": message, "timestamp": _now_iso(),
-                })
+                state.put_event(run_id, emit(step, status, message))
 
             try:
                 result = run_analysis_pipeline(
@@ -499,7 +492,9 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
                 return False
 
         # Replay past events first (for late-connecting clients)
+        replayed: set[str] = set()
         for event in replay_events(str(events_path)):
+            replayed.add(json.dumps(event, sort_keys=True))
             if not _send_sse(event):
                 return
             if event.get("step") in ("done", "error"):
@@ -519,6 +514,9 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
 
             if event is None:  # sentinel
                 return
+
+            if json.dumps(event, sort_keys=True) in replayed:
+                continue
 
             if not _send_sse(event):
                 return
