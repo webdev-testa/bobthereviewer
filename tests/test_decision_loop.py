@@ -211,3 +211,28 @@ def test_report_groups_test_callers_into_one_line():
     assert "| `invoice.calculate_invoice` |" in md
     assert "| `tests.test_discount.test_no_discount` |" not in md
     assert "**1 test(s) call it:** `test_no_discount`" in md
+
+
+def test_repository_urls_match_with_or_without_dot_git():
+    from bobthereviewer.decisions import same_repository
+    assert same_repository("https://github.com/o/r.git", "https://github.com/o/r")
+    assert same_repository("https://github.com/O/R/", "https://github.com/o/r")
+    assert not same_repository("https://github.com/o/r", "https://github.com/o/other")
+
+
+def test_head_decisions_leave_out_files_already_on_the_base(tmp_path):
+    """A decision merged earlier is prior context, never this change's verdict."""
+    from types import SimpleNamespace
+    from bobthereviewer.pipeline import _load_head_decisions
+
+    base, head = tmp_path / "base", tmp_path / "head"
+    for root in (base, head):
+        (root / ".bobreviewer" / "decisions").mkdir(parents=True)
+    old = {"symbol": "pricing.calculate_price", "case_id": "price-100", "verdict": "intended"}
+    new = {"symbol": "invoice.calculate_invoice", "case_id": "small", "verdict": "unintended"}
+    for root in (base, head):
+        (root / ".bobreviewer" / "decisions" / "old.json").write_text(json.dumps(old), encoding="utf-8")
+    (head / ".bobreviewer" / "decisions" / "new.json").write_text(json.dumps(new), encoding="utf-8")
+
+    decisions = _load_head_decisions(SimpleNamespace(head_path=head, base_path=base))
+    assert [d["symbol"] for d in decisions] == ["invoice.calculate_invoice"]

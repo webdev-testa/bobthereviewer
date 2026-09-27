@@ -253,18 +253,21 @@ def _default_branch_for(ctx: WorktreeContext) -> str:
 
 
 def _load_head_decisions(ctx: WorktreeContext) -> list[dict]:
-    """Decisions the author has committed on the **head** revision.
+    """Decisions this change adds: committed on the **head** revision and absent from the base.
 
-    These are proposed (or approved if they were merged earlier), and they are what the PR
-    comment shows next to each difference. Read from the head worktree, not the local tree,
-    so the report describes the revision under review.
+    They are what the PR comment shows next to each difference. A decision file already on the
+    base was made for an earlier change; showing it here would approve a new difference with an
+    old verdict, so it only appears as prior context (``prior_decisions``).
     """
     decisions: list[dict] = []
     try:
         decisions_dir = Path(ctx.head_path) / ".bobreviewer" / "decisions"
+        base_dir = Path(ctx.base_path) / ".bobreviewer" / "decisions"
         if not decisions_dir.exists():
             return []
         for path in sorted(decisions_dir.glob("*.json")):
+            if (base_dir / path.name).exists():
+                continue
             try:
                 record = json.loads(path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
