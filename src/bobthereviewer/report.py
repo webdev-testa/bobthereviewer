@@ -104,23 +104,35 @@ def render_markdown(evidence: dict) -> str:  # noqa: C901 (complexity acceptable
                     a(f"| `{r['file_path']}` | {r['line']} | {r['reason']} |")
                 a("")
 
-            # Probe results for this function
-            related = [p for p in probe_results if p.get("target") == fn["symbol"]]
-            for pr in related:
-                a(f"**Probe:** `{pr['probe_file']}`")
-                a("")
-                a("| Case | Before | After | Status |")
-                a("|---|---|---|---|")
-                for c in pr.get("cases", []):
-                    reason = f" ({c['inconclusive_reason']})" if c.get("inconclusive_reason") else ""
-                    a(f"| `{c['id']}` | {_fmt_output(c.get('base_output'))} "
-                      f"| {_fmt_output(c.get('head_output'))} "
-                      f"| {_status_label(c['status'])}{reason} |")
-                a("")
     else:
         a("### Changed functions")
         a("")
         a("No changed functions detected.")
+        a("")
+
+    # Include probes of unchanged callers as well as changed functions.
+    if probe_results:
+        a("### Probe results")
+        a("")
+        for pr in probe_results:
+            a(f"**Probe:** `{pr['probe_file']}` — `{pr['target']}`")
+            a("")
+            a("| Case | Before | After | Status |")
+            a("|---|---|---|---|")
+            for c in pr.get("cases", []):
+                reason = f" ({c['inconclusive_reason']})" if c.get("inconclusive_reason") else ""
+                status = c.get("comparison_status") or c["execution_status"]
+                a(f"| `{c['id']}` | {_fmt_output(c.get('base_output'))} "
+                  f"| {_fmt_output(c.get('head_output'))} "
+                  f"| {_status_label(status)}{reason} |")
+            a("")
+
+    notes = evidence.get("analysis_limits", {}).get("notes", [])
+    if notes:
+        a("### Analysis and execution notes")
+        a("")
+        for note in notes:
+            a(f"- {note}")
         a("")
 
     # ── test results ──

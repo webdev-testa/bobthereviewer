@@ -105,14 +105,15 @@ class TestStatusAssignment:
         head = tmp_path / "head"; head.mkdir()
         self._setup_probe(base, head, "def f(): return 42", "def f(): return 42")
         results, _ = run_probes(str(base), str(head), PYTHON, _make_triage(), _noop_emit)
-        assert results[0]["cases"][0]["status"] == "match"
+        assert results[0]["cases"][0]["comparison_status"] == "match"
+        assert results[0]["cases"][0]["execution_status"] == "success"
 
     def test_differ(self, tmp_path):
         base = tmp_path / "base"; base.mkdir()
         head = tmp_path / "head"; head.mkdir()
         self._setup_probe(base, head, "def f(): return 1", "def f(): return 2")
         results, _ = run_probes(str(base), str(head), PYTHON, _make_triage(), _noop_emit)
-        assert results[0]["cases"][0]["status"] == "differ"
+        assert results[0]["cases"][0]["comparison_status"] == "differ"
         assert results[0]["cases"][0]["base_output"] == 1
         assert results[0]["cases"][0]["head_output"] == 2
 
@@ -123,7 +124,8 @@ class TestStatusAssignment:
         func = "def f(): raise ValueError('same error')"
         self._setup_probe(base, head, func, func)
         results, _ = run_probes(str(base), str(head), PYTHON, _make_triage(), _noop_emit)
-        assert results[0]["cases"][0]["status"] == "differ"
+        assert results[0]["cases"][0]["comparison_status"] == "differ"
+        assert results[0]["cases"][0]["execution_status"] == "exception"
 
     def test_import_error_is_inconclusive(self, tmp_path):
         base = tmp_path / "base"; base.mkdir()
@@ -138,7 +140,8 @@ class TestStatusAssignment:
             })
         results, _ = run_probes(str(base), str(head), PYTHON, _make_triage(), _noop_emit)
         c = results[0]["cases"][0]
-        assert c["status"] == "inconclusive"
+        assert c["comparison_status"] is None
+        assert c["execution_status"] == "inconclusive"
         assert c["inconclusive_reason"] == "import_error"
 
     def test_required_evidence_fields_present(self, tmp_path):
@@ -153,7 +156,7 @@ class TestStatusAssignment:
         assert "prior_difference_run_id" in r
         c = r["cases"][0]
         for field in ("id", "args", "kwargs", "base_output", "head_output",
-                      "status", "inconclusive_reason", "base_executed_at", "head_executed_at"):
+                      "execution_status", "comparison_status", "inconclusive_reason", "base_executed_at", "head_executed_at"):
             assert field in c, f"missing field: {field}"
 
 
@@ -166,7 +169,7 @@ class TestPriorReportLinking:
                 "probe_hash": probe_hash,
                 "target": "m.f",
                 "prior_difference_run_id": None,
-                "cases": [{"id": "c1", "status": "differ"}],
+                "cases": [{"id": "c1", "comparison_status": "differ"}],
             }],
         }
 
@@ -215,7 +218,7 @@ class TestPriorReportLinking:
                 "probe_hash": probe_hash,
                 "target": "m.f",
                 "prior_difference_run_id": None,
-                "cases": [{"id": "c1", "status": "match"}],
+                "cases": [{"id": "c1", "comparison_status": "match"}],
             }],
         }
         results, _ = run_probes(
@@ -282,7 +285,7 @@ def test_rounding_scenario_end_to_end(tmp_path):
             assert c["id"] == "invoice-small-discount"
             assert c["base_output"] == 100.0, f"Expected base=100.0, got {c['base_output']}"
             assert c["head_output"] == 99.99, f"Expected head=99.99, got {c['head_output']}"
-            assert c["status"] == "differ", f"Expected status=differ, got {c['status']}"
+            assert c["comparison_status"] == "differ", f"Expected status=differ, got {c['comparison_status']}"
             assert c["inconclusive_reason"] is None
             assert prior_run_id is None
 

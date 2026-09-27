@@ -81,7 +81,12 @@ def _run_pytest(
         return {}
 
     root = Path(worktree_path)
-    abs_test_files = [str(root / f) for f in test_files]
+
+    def diagnostic(text: str) -> str:
+        # Temporary worktree and report paths are not publishable evidence.
+        for path in (root.resolve(), Path(report_path)):
+            text = text.replace(str(path), ".").replace(path.as_posix(), ".")
+        return text.strip()
 
     # Write json report to a temp file
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as tf:
@@ -94,16 +99,17 @@ def _run_pytest(
         "-q",
         f"--json-report",
         f"--json-report-file={report_path}",
-    ] + abs_test_files
+    ] + test_files
 
     try:
-        subprocess.run(
+        completed = subprocess.run(
             cmd,
             cwd=worktree_path,
             capture_output=True,
             timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired:
+        Path(report_path).unlink(missing_ok=True)
         return {f"<suite timeout>": {"status": "error", "message": "test suite timed out"}}
 
     # Parse JSON report
@@ -111,7 +117,8 @@ def _run_pytest(
         with open(report_path, encoding="utf-8") as f:
             report = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        return {"<parse error>": {"status": "error", "message": "could not parse pytest report"}}
+        message = diagnostic((completed.stdout + completed.stderr).decode("utf-8", errors="replace"))
+        return {"<parse error>": {"status": "error", "message": message or "could not parse pytest report"}}
     finally:
         try:
             Path(report_path).unlink(missing_ok=True)
@@ -141,6 +148,20 @@ def _run_pytest(
                 message = message.get("reprcrash", {}).get("message") or str(message)
 
         results[node_id] = {"status": status, "message": message}
+
+    collection_errors = [
+        str(collector.get("longrepr") or collector.get("nodeid") or "Collection failed")
+        for collector in report.get("collectors", [])
+        if collector.get("outcome") == "failed"
+    ]
+    if collection_errors or not results or completed.returncode not in (0, 1):
+        message = "\n".join(collection_errors)
+        if not message:
+            message = (completed.stdout + completed.stderr).decode("utf-8", errors="replace").strip()
+        results["<collection>"] = {
+            "status": "error",
+            "message": diagnostic(message) or "No tests collected from the frozen test files.",
+        }
 
     return results
 

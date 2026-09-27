@@ -160,8 +160,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     from bobthereviewer.pipeline import run_analysis_pipeline, ProbeSpec
-    from bobthereviewer.snapshots import find_repo_root, SnapshotError
-    import subprocess
+    from bobthereviewer.snapshots import find_repo_root, uncommitted_files, SnapshotError
+    from bobthereviewer import run_store
+    import shutil
 
     repo_dir = Path(args.repo_dir) if args.repo_dir else Path.cwd()
 
@@ -172,20 +173,28 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    dirty = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=repo_root, capture_output=True, text=True,
-    ).stdout.strip()
-    if dirty:
-        dirty_files = [line[3:] for line in dirty.splitlines()]
-        print("error: working tree has uncommitted changes.", file=sys.stderr)
-        print("Uncommitted files are not included in the review.", file=sys.stderr)
-        print("Commit or stash these files before running:", file=sys.stderr)
-        for f in dirty_files[:10]:
-            print(f"  {f}", file=sys.stderr)
-        if len(dirty_files) > 10:
-            print(f"  … and {len(dirty_files) - 10} more", file=sys.stderr)
+    try:
+        bob_files, other_files = uncommitted_files(repo_root)
+    except SnapshotError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 1
+    for path in bob_files:
+        print(f"Not included (uncommitted): {path} — commit it to use it", file=sys.stderr)
+    if other_files:
+        print("Working tree has uncommitted changes; these are not included in the review:",
+              file=sys.stderr)
+        for path in other_files:
+            print(f"  {path}", file=sys.stderr)
+        if not sys.stdin.isatty():
+            print("error: commit or stash these files before running non-interactively.",
+                  file=sys.stderr)
+            return 1
+        try:
+            answer = input("Continue without these changes? [y/N] ")
+        except (EOFError, KeyboardInterrupt):
+            return 1
+        if answer.strip().lower() not in ("y", "yes"):
+            return 1
 
     # ---- Resolve default refs from config ----
     before_ref = args.before
@@ -224,24 +233,36 @@ def cmd_run(args: argparse.Namespace) -> int:
         prior_report_path=prior_report,
     )
 
+    run_id = str(uuid.uuid4())
+    run_dir = None
     try:
+        run_dir = run_store.create_run_dir(str(repo_root), run_id, before_ref, after_ref)
         result = run_analysis_pipeline(
-            repo_dir=repo_dir,
+            repo_dir=repo_root,
             base_ref=before_ref,
             head_ref=after_ref,
             probe_spec=probe_spec,
+            run_id=run_id,
             execute=True,
             force_run=args.full,
-            output_dir=output_dir,
             callback=_cli_progress,
         )
+        run_store.save_evidence(run_dir, result.evidence)
+        if output_dir is not None and output_dir.resolve() != run_dir.resolve():
+            output_dir.mkdir(parents=True, exist_ok=True)
+            for name in ("meta.json", "evidence.json", "report.md"):
+                shutil.copyfile(run_dir / name, output_dir / name)
+        result.output_path = run_dir / "evidence.json"
     except Exception as exc:
+        if run_dir is not None:
+            run_store.fail_run(run_dir)
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
     _print_evidence_summary(result.evidence)
-    if result.output_path:
-        print(f"\n  evidence written to: {result.output_path}")
+    print(f"\n  run saved to: {run_dir}")
+    if output_dir is not None:
+        print(f"  extra copy: {output_dir}")
 
     if args.open and result.output_path:
         import webbrowser

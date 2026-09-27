@@ -6,6 +6,7 @@ Manages the saved-run directory under ``.bobreviewer/runs/<run_id>/``.
 Each run directory contains:
   meta.json       — written at run start; updated to "completed" after atomic replace
   evidence.json   — written atomically after the run finishes
+  report.md       — Markdown rendering of the evidence
   events.jsonl    — progress events, appended during the run
 
 A run directory that has ``meta.json`` but no ``evidence.json`` is treated as
@@ -76,6 +77,11 @@ def save_evidence(run_dir: Path, evidence_dict: dict) -> None:
     ``evidence.json``.  Updates ``meta.json`` to ``status: "completed"`` and
     records ``generated_at`` from the evidence dict.
     """
+    from bobthereviewer.report import render_markdown
+
+    report_tmp = run_dir / "report.md.tmp"
+    report_tmp.write_text(render_markdown(evidence_dict), encoding="utf-8")
+    report_tmp.replace(run_dir / "report.md")
     tmp_path = run_dir / "evidence.json.tmp"
     final_path = run_dir / "evidence.json"
 
@@ -90,7 +96,16 @@ def save_evidence(run_dir: Path, evidence_dict: dict) -> None:
         meta = {}
 
     meta["status"] = "completed"
+    meta["triage_category"] = evidence_dict.get("triage", {}).get("category", "code")
     meta["generated_at"] = evidence_dict.get("generated_at", _now_iso())
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+
+def fail_run(run_dir: Path) -> None:
+    """Keep a failed run discoverable without claiming completed evidence."""
+    meta_path = run_dir / "meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["status"] = "failed"
     meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
 
