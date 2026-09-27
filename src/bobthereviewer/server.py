@@ -35,7 +35,6 @@ import re
 import secrets
 import sys
 import threading
-import traceback
 import urllib.parse
 import uuid
 from datetime import datetime, timezone
@@ -46,12 +45,15 @@ from typing import Any, Callable, Optional
 from bobthereviewer.run_store import (
     RunNotFoundError,
     create_run_dir,
+    fail_run,
     get_run,
     list_runs,
     save_evidence,
 )
 from bobthereviewer.decide_cmd import DecideError, decide_from_run
+from bobthereviewer.pipeline import ProbeSpec, run_analysis_pipeline
 from bobthereviewer.progress import make_emitter, replay_events
+from bobthereviewer.snapshots import SnapshotError, find_repo_root, resolve_ref, uncommitted_files
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +363,21 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
                 self._send_json(400, {"error": f"unsafe probe path: {p!r}"})
                 return
 
+        try:
+            repo_root = find_repo_root(Path(self.repo_dir).resolve())
+            for ref in (before_ref, after_ref):
+                try:
+                    resolve_ref(ref, repo_root)
+                except SnapshotError:
+                    self._send_json(400, {"error": f"cannot resolve ref {ref!r}"})
+                    return
+            bob_files, other_files = uncommitted_files(repo_root)
+        except SnapshotError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+        # Reviews always use committed refs, so a web run is never refused for a dirty tree.
+        warnings = [f"Not included (uncommitted): {path}" for path in bob_files + other_files]
+
         # One-run-at-a-time enforcement
         run_id = str(uuid.uuid4())
         acquired = self._state.start_run(run_id)
@@ -370,104 +387,44 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
             return
 
         # Create run dir before returning so the progress endpoint can open events.jsonl
-        run_dir = create_run_dir(
-            self.repo_dir, run_id,
-            base_ref=before_ref,
-            head_ref=after_ref,
+        run_dir = create_run_dir(str(repo_root), run_id, base_ref=before_ref, head_ref=after_ref)
+        prior_path = repo_root / ".bobreviewer" / "runs" / str(prior_run_id) / "evidence.json" if prior_run_id else None
+        probe_spec = ProbeSpec(
+            probe_files=list(probes),
+            prior_run_id=prior_run_id,
+            prior_report_path=prior_path if prior_path and prior_path.exists() else None,
         )
-
-        # Snapshot the server attributes for the thread (handler instance may be GC'd)
-        repo_dir = self.repo_dir
-        python_exe = self.python_exe
         state = self._state  # capture per-server state, not a module global
 
         def _run_thread() -> None:
-            events_path = str(run_dir / "events.jsonl")
-            emit = make_emitter(run_id=run_id, events_path=events_path, mode="server")
+            emit = make_emitter(run_id=run_id, events_path=str(run_dir / "events.jsonl"), mode="server")
 
-            def _put(event: dict) -> None:
-                state.put_event(run_id, event)
-
-            # Wrap emit so events also go to the SSE queue
+            # Every step goes to events.jsonl (late SSE clients replay it) and to the live SSE queue.
             def _emit(step: str, status: str, message: str) -> None:
                 emit(step, status, message)
-                # Build the same event dict for the SSE queue
-                event = {
-                    "run_id": run_id,
-                    "step": step,
-                    "status": status,
-                    "message": message,
-                    "timestamp": _now_iso(),
-                }
-                _put(event)
+                state.put_event(run_id, {
+                    "run_id": run_id, "step": step, "status": status, "message": message, "timestamp": _now_iso(),
+                })
 
             try:
-                # ---- triage (stub: always "code", not skipped) ----
-                _emit("triage", "started", "Classifying diff")
-                triage = {"category": "code", "skipped": False, "skip_reason": None}
-                _emit("triage", "completed", "Category: code")
-
-                # ---- probe runner ----
-                from bobthereviewer.probe_runner import run_probes
-                from bobthereviewer.test_runner import run_tests
-
-                # Resolve prior report if supplied
-                prior_report = None
-                if prior_run_id:
-                    try:
-                        prior_report = get_run(repo_dir, str(prior_run_id))
-                    except RunNotFoundError:
-                        pass
-
-                # For now the server receives worktree paths as the refs themselves
-                # (Lane 1 will eventually create actual worktrees; for integration
-                # testing the refs are treated as directory paths to the project)
-                base_wt = before_ref
-                head_wt = after_ref
-
-                probe_results, pr_run_id = run_probes(
-                    base_wt, head_wt, python_exe,
-                    triage, _emit,
-                    prior_report=prior_report,
+                result = run_analysis_pipeline(
+                    repo_dir=repo_root,
+                    base_ref=before_ref,
+                    head_ref=after_ref,
+                    probe_spec=probe_spec,
+                    run_id=run_id,
+                    execute=True,
+                    callback=_emit,
                 )
-
-                test_results, frozen_suite_hash = run_tests(
-                    base_wt, head_wt, python_exe,
-                    triage, _emit,
-                )
-
-                _emit("done", "completed", "Review complete")
-
-                evidence = {
-                    "schema_version": "1",
-                    "run_id": run_id,
-                    "generated_at": _now_iso(),
-                    "repository": "",
-                    "base_ref": before_ref,
-                    "head_ref": after_ref,
-                    "base_commit": "",
-                    "head_commit": "",
-                    "prior_run_id": pr_run_id,
-                    "ci_run_url": None,
-                    "frozen_suite_hash": frozen_suite_hash,
-                    "triage": triage,
-                    "analysis_limits": {"max_hops": 2, "notes": []},
-                    "changed_functions": [],
-                    "test_results": test_results,
-                    "probe_results": probe_results,
-                    "decisions": [],
-                }
-                save_evidence(run_dir, evidence)
-
-            except Exception:
-                _emit("error", "failed", traceback.format_exc())
+                save_evidence(run_dir, result.evidence)
+            except Exception as exc:
+                fail_run(run_dir)
+                _emit("error", "failed", str(exc))
             finally:
                 state.finish_run(run_id)
 
-        t = threading.Thread(target=_run_thread, daemon=True)
-        t.start()
-
-        self._send_json(200, {"run_id": run_id})
+        threading.Thread(target=_run_thread, daemon=True).start()
+        self._send_json(200, {"run_id": run_id, "warnings": warnings})
 
     # ------------------------------------------------------------------
     # SSE progress stream (GET /api/runs/{run_id}/progress)
