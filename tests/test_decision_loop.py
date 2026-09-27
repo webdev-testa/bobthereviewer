@@ -188,3 +188,12 @@ def test_a_matching_case_needs_no_decision_column_value():
     md = render_markdown(_evidence(status="match"))
     row = [l for l in md.splitlines() if "c1" in l and "|" in l][0]
     assert "No decision yet" not in row
+
+
+def test_prior_section_lists_only_approved_decisions():
+    evidence = json.loads((Path(__file__).parent / "fixtures" / "evidence_rounding_change.json").read_text(encoding="utf-8"))
+    decision = {"verdict": "intended", "symbol": "pricing.calculate_price", "rationale": "Tax rate raised"}
+    branch_only = render_markdown({**evidence, "decisions": [decision], "prior_decisions": []})
+    assert "Prior decisions" not in branch_only
+    approved = render_markdown({**evidence, "decisions": [], "prior_decisions": [decision]})
+    assert "Prior decisions" in approved and "Tax rate raised" in approved

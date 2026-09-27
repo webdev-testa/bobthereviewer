@@ -210,7 +210,9 @@ def render_markdown(evidence: dict) -> str:  # noqa: C901 (complexity acceptable
     a("")
 
     # ── prior decisions ──
-    decisions = evidence.get("decisions", [])
+    # Only decisions approved on the default branch; `decisions` are this branch's own
+    # proposals, already shown next to their cases above.
+    decisions = evidence.get("prior_decisions", [])
     if decisions:
         a("### Prior decisions")
         a("")
