@@ -20,14 +20,14 @@ You need **Python 3.11+** and **git**. Install the tool once per computer, isola
 projects' dependencies (no Node.js needed; the web UI ships inside the package):
 
 ```bash
-uv tool install "git+https://github.com/webdev-testa/bobthereviewer@v0.1.2"
+uv tool install "git+https://github.com/webdev-testa/bobthereviewer@v0.1.3"
 ```
 
 No `uv` yet? On Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
 (on macOS/Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`). If `bobreviewer` is then not
 found, run `uv tool update-shell` and open a new terminal.
 
-Alternatives: `pipx install "git+https://github.com/webdev-testa/bobthereviewer@v0.1.2"`, or
+Alternatives: `pipx install "git+https://github.com/webdev-testa/bobthereviewer@v0.1.3"`, or
 `pip install` the same URL inside a virtual environment.
 
 Tests and probes run in **your project's own Python**: its `.venv` (or the one you configure)
