@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -33,6 +33,7 @@ report.json
 # Web dev artifacts — local only
 web/node_modules/
 web/dist/
+web/dist-judge/
 web/dist-ssr/
 
 # NOTE: src/bobthereviewer/frontend/ is intentionally committed (pre-built bundle)

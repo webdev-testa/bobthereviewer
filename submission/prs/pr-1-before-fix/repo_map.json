@@ -1,0 +1,40 @@
+{
+  "schema_version": "1",
+  "repo": "bobthereviewer-demo",
+  "sha": "2222222222222222222222222222222222222222",
+  "generated_at": "2026-09-27T08:00:00Z",
+  "modules": [
+    {
+      "path": "demo/sample_project/discount.py",
+      "language": "python",
+      "tier": "full",
+      "last_commit": {
+        "sha": "2222222222222222222222222222222222222222",
+        "date": "2026-09-27",
+        "subject": "Change rounding behavior in discount calculation",
+        "pr": 1
+      }
+    },
+    {
+      "path": "demo/sample_project/invoice.py",
+      "language": "python",
+      "tier": "full",
+      "last_commit": {
+        "sha": "1111111111111111111111111111111111111111",
+        "date": "2026-09-26",
+        "subject": "Initial invoice calculation module",
+        "pr": null
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "demo/sample_project/invoice.py",
+      "to": "demo/sample_project/discount.py",
+      "kind": "import",
+      "line": 4
+    }
+  ],
+  "unknowns": [],
+  "limits": []
+}
