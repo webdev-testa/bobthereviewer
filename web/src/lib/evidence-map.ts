@@ -12,11 +12,15 @@ export interface MapEntry {
   symbol: string
   path: string
   line?: number
+  /** What the code is: drawn as the box outline. */
+  role: MapRole
+  /** What running it showed: drawn as the box color. */
   status: EvidenceStatus
   isTest: boolean
-  /** Part of this change; stays marked even when a probe result recolors the box. */
-  isChanged: boolean
 }
+
+/** `changed`: part of this change · `affected`: calls it · `possible`: might call it (unresolved). */
+export type MapRole = 'changed' | 'affected' | 'possible'
 
 // Type aliases (not interfaces) so node data satisfies React Flow's Record<string, unknown>.
 type Ports = { ports: PortPlacement[] }
@@ -76,7 +80,7 @@ function evidenceModel(evidence: Evidence, expandedTests: ReadonlySet<string>) {
   for (const fn of evidence.changed_functions) {
     entries.set(fn.symbol, {
       key: fn.symbol, symbol: shortName(fn.symbol), path: fn.file_path,
-      status: probeStatus(evidence, fn.symbol) ?? 'changed', isTest: false, isChanged: true,
+      role: 'changed', status: probeStatus(evidence, fn.symbol) ?? 'not_run', isTest: false,
     })
   }
   for (const fn of evidence.changed_functions) {
@@ -87,10 +91,12 @@ function evidenceModel(evidence: Evidence, expandedTests: ReadonlySet<string>) {
         continue
       }
       if (!entries.has(caller.symbol)) {
-        const fallback: EvidenceStatus = caller.in_diff ? 'changed' : caller.needs_probe ? 'needs_probe' : 'outside_diff'
+        // Tests already run on both sides, and code inside the diff is reviewed directly.
+        const wantsProbe = caller.needs_probe && !caller.in_diff && !isTest
         entries.set(caller.symbol, {
           key: caller.symbol, symbol: shortName(caller.symbol), path: caller.file_path, line: caller.line,
-          status: probeStatus(evidence, caller.symbol) ?? fallback, isTest, isChanged: caller.in_diff,
+          role: caller.in_diff ? 'changed' : 'affected',
+          status: probeStatus(evidence, caller.symbol) ?? (wantsProbe ? 'needs_probe' : 'not_run'), isTest,
         })
       }
       const via = caller.via?.length ? ` via ${caller.via.map((v) => shortName(v.symbol)).join(' → ')}` : ''
@@ -98,8 +104,8 @@ function evidenceModel(evidence: Evidence, expandedTests: ReadonlySet<string>) {
     }
     fn.unknown_references.forEach((ref) => {
       const key = `unknown:${ref.file_path}:${ref.line}`
-      entries.set(key, { key, symbol: 'Unknown reference', path: ref.file_path, line: ref.line, status: 'unknown_edge', isTest: false, isChanged: false })
-      edges.push(callEdge(key, fn.symbol, `Unknown edge: ${ref.reason} at ${ref.file_path}:${ref.line}`, true))
+      entries.set(key, { key, symbol: 'Dynamic call', path: ref.file_path, line: ref.line, role: 'possible', status: 'not_run', isTest: false })
+      edges.push(callEdge(key, fn.symbol, `Might call ${shortName(fn.symbol)}: ${ref.reason} at ${ref.file_path}:${ref.line}`, true))
     })
   }
   for (const [targetKey, paths] of testsByTarget) {
@@ -136,7 +142,7 @@ function collapseFolders(leaves: Leaf[], edges: TooltipFlowEdge[], collapsed: Re
     }
     const id = `collapsed:${folder}`
     unitOf.set(leaf.id, id)
-    const box = boxes.get(id) ?? { path: folder, count: 0, status: 'changed' as EvidenceStatus }
+    const box = boxes.get(id) ?? { path: folder, count: 0, status: 'not_run' as EvidenceStatus }
     box.count += leaf.type === 'tests' ? leaf.data.count : 1
     if (leaf.type === 'evidence' && STATUS_PRIORITY.indexOf(leaf.data.entry.status) < STATUS_PRIORITY.indexOf(box.status)) {
       box.status = leaf.data.entry.status
