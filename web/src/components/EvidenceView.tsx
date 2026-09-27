@@ -8,7 +8,7 @@ import { TriageBadge } from '@/components/TriageBadge'
 import { ChangedFunctionCard } from '@/components/ChangedFunctionCard'
 import { TestResultTable } from '@/components/TestResultTable'
 import { DecisionBadge } from '@/components/DecisionBadge'
-import { CallerMap } from '@/components/CallerMap'
+import { EvidenceMap } from '@/components/EvidenceMap'
 import type { Evidence } from '@/types/evidence'
 
 interface Props {
@@ -78,21 +78,20 @@ export function EvidenceView({ evidence, onSaveDecision }: Props) {
         </Alert>
       )}
       <Summary evidence={evidence} />
+      <EvidenceMap evidence={evidence} />
 
       <Section title="Changed functions">
         {evidence.changed_functions.length === 0
           ? <p className="text-sm text-muted-foreground">No changed functions detected.</p>
           : evidence.changed_functions.map((fn) => (
-            <div key={fn.symbol} className="space-y-2">
-              <ChangedFunctionCard
-                fn={fn}
-                probeResults={evidence.probe_results}
-                onSaveDecision={onSaveDecision
-                  ? (caseId, probeFile) => onSaveDecision(fn.symbol, caseId, probeFile)
-                  : undefined}
-              />
-              <CallerMap fn={fn} />
-            </div>
+            <ChangedFunctionCard
+              key={fn.symbol}
+              fn={fn}
+              probeResults={evidence.probe_results}
+              onSaveDecision={onSaveDecision
+                ? (caseId, probeFile) => onSaveDecision(fn.symbol, caseId, probeFile)
+                : undefined}
+            />
           ))}
       </Section>
 
