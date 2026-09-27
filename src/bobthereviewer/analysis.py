@@ -562,14 +562,18 @@ def analyze(
         LanguageSpec,
         get_language_spec_for_path,
         get_tier_note,
+        is_generated_source,
     )
 
     changed_set = set(changed_files)
     py_changed = [f for f in changed_files if f.endswith(".py")]
-    ts_changed = [
+    ts_candidates = [
         f for f in changed_files
         if get_language_spec_for_path(f) is not None and get_language_spec_for_path(f).key != "python"
     ]
+    generated = [f for f in ts_candidates if is_generated_source(head_worktree / f) or is_generated_source(base_worktree / f)]
+    ts_changed = [f for f in ts_candidates if f not in generated]
+    changed_files = [f for f in changed_files if f not in generated]
 
     languages_in_diff: list[LanguageSpec] = []
     if py_changed or not ts_changed:
@@ -583,6 +587,10 @@ def analyze(
             languages_in_diff.append(spec)
 
     result = AnalysisResult()
+    if generated:
+        result.analysis_limits["notes"].append(
+            f"Skipped {len(generated)} minified or generated file(s), not analyzed: " + ", ".join(sorted(generated))
+        )
     result.analysis_limits["languages"] = [
         {"language": spec.name, "adapter": spec.adapter, "tier": spec.tier}
         for spec in languages_in_diff
