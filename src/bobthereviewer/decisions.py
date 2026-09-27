@@ -117,12 +117,15 @@ def validate_and_save(
 
     _validate_schema(decision_data, schema, "Decision")
 
-    # Build filename: <symbol_slug>-<head_commit_short>.json
+    # Build filename: <symbol_slug>[-<case_id_slug>]-<head_commit_short>.json. The case id keeps two
+    # cases of one function apart; without it the second decision silently replaced the first.
     symbol = decision_data.get("symbol", "unknown")
     head_commit = decision_data.get("head_commit", "unknown")
     head_short = head_commit[:7] if len(head_commit) >= 7 else head_commit
     slug = _symbol_to_slug(symbol)
-    filename = f"{slug}-{head_short}.json"
+    case_id = decision_data.get("case_id")
+    case_part = f"-{_symbol_to_slug(case_id)}" if case_id else ""
+    filename = f"{slug}{case_part}-{head_short}.json"
 
     output_dir = pathlib.Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
