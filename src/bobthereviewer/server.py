@@ -6,7 +6,8 @@ Localhost-only HTTP server that powers the developer UI.
 Security constraints (all enforced in _check_security before any handler):
   - Binds to 127.0.0.1 only (never 0.0.0.0)
   - Host header must be localhost or 127.0.0.1 → HTTP 403
-  - Bearer token required (per-launch, generated with secrets) → HTTP 401
+  - Bearer token required on /api/* (per-launch, generated with secrets) → HTTP 401;
+    the UI shell (/, /assets/*, /favicon.svg, /icons.svg) is served without it
   - run_id path segments must match UUID4 format → HTTP 400
   - File-path body params: no .., no leading /, no null bytes → HTTP 400
 
@@ -61,6 +62,9 @@ _UUID4_RE = re.compile(
 )
 
 _VALID_HOST_RE = re.compile(r"^(localhost|127\.0\.0\.1)(:\d+)?$")
+
+# Paths the browser loads for the UI shell itself; served without the token.
+_STATIC_ROOT_FILES = ("", "/favicon.svg", "/icons.svg")
 
 
 def _is_valid_uuid4(value: str) -> bool:
@@ -185,7 +189,7 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def _check_security(self) -> bool:
+    def _check_security(self, require_token: bool = True) -> bool:
         """
         Check Host header, bearer token.
         Returns True if the request is allowed; writes error response and
@@ -196,6 +200,10 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
         if not _VALID_HOST_RE.match(host):
             self._send_json(403, {"error": "forbidden host"})
             return False
+
+        # The page's own <script>/<link> requests can't carry the token.
+        if not require_token:
+            return True
 
         # Token check: Authorization header or ?token= query param
         auth = self.headers.get("Authorization", "")
@@ -252,14 +260,19 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
         return False
 
     def do_GET(self) -> None:
-        if not self._check_security():
+        clean, segments = self._route()
+        is_static = clean in _STATIC_ROOT_FILES or segments[:1] == ["assets"]
+        if not self._check_security(require_token=not is_static):
             return
         if self._reject_path_traversal():
             return
-        clean, segments = self._route()
 
         if clean == "" or clean == "/":
             self._handle_static_index()
+            return
+
+        if clean in _STATIC_ROOT_FILES:
+            self._handle_static_asset(clean)
             return
 
         if segments[:1] == ["api"] and segments[1:2] == ["runs"]:
@@ -581,7 +594,7 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
     def _handle_static_index(self) -> None:
         index = self._frontend_dir() / "index.html"
         if not index.exists():
-            msg = b"Developer UI not built. Run `npm run build` in `frontend/`."
+            msg = b"Developer UI not built. Run `npm run build` in `web/`."
             self.send_response(404)
             self.send_header("Content-Type", "text/plain")
             self.send_header("Content-Length", str(len(msg)))

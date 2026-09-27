@@ -98,6 +98,19 @@ class TestSecurityLayer:
         status, _ = _req(conn, "GET", "/api/runs", token=token, host="evil.example.com")
         assert status == 403
 
+    def test_ui_shell_served_without_token(self, tmp_path):
+        conn, _, _ = _start_server(tmp_path)
+        frontend = Path(__file__).parent.parent / "src" / "bobthereviewer" / "frontend"
+        asset = next((frontend / "assets").iterdir())
+        for path in ("/", f"/assets/{asset.name}", "/favicon.svg"):
+            status, _ = _req(conn, "GET", path)
+            assert status == 200, path
+
+    def test_ui_shell_still_checks_host(self, tmp_path):
+        conn, _, _ = _start_server(tmp_path)
+        status, _ = _req(conn, "GET", "/", host="evil.example.com")
+        assert status == 403
+
     def test_localhost_host_passes(self, tmp_path):
         conn, token, _ = _start_server(tmp_path)
         status, _ = _req(conn, "GET", "/api/runs", token=token, host="localhost")

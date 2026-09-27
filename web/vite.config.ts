@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 
-// Developer bundle — output goes to src/bobreviewer/frontend/
+// Developer bundle — output goes to src/bobthereviewer/frontend/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -11,7 +11,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../src/bobreviewer/frontend',
+    outDir: '../src/bobthereviewer/frontend',
     emptyOutDir: true,
   },
 })
