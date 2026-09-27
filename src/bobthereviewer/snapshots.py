@@ -112,6 +112,29 @@ def find_repo_root(start: Path) -> Path:
     return Path(root).resolve()
 
 
+def uncommitted_files(repo_root: Path) -> tuple[list[str], list[str]]:
+    """Split dirty paths, including both ends of renames, without Git quoting."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        cwd=repo_root, capture_output=True, text=True, encoding="utf-8",
+    )
+    if result.returncode:
+        raise SnapshotError(f"Cannot read working tree status: {result.stderr.strip()}")
+    records = iter(result.stdout.split("\0"))
+    paths = []
+    for record in records:
+        if not record:
+            continue
+        paths.append(record[3:])
+        if "R" in record[:2] or "C" in record[:2]:
+            paths.append(next(records))
+    paths = sorted(set(paths))
+    return (
+        [p for p in paths if p.startswith(".bobreviewer/")],
+        [p for p in paths if not p.startswith(".bobreviewer/")],
+    )
+
+
 def resolve_ref(ref: str, repo_root: Path) -> str:
     """Resolve a ref to a full 40-character SHA.
 

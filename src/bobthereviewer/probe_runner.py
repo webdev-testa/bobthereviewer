@@ -119,7 +119,7 @@ def run_probes(
             key = (pr["probe_file"], pr["probe_hash"])
             # Any case with status "differ" marks this probe as having differed
             for c in pr.get("cases", []):
-                if c.get("status") == "differ":
+                if c.get("comparison_status") == "differ":
                     prior_differ_lookup[key] = prior_run_id
                     break
 
@@ -148,6 +148,11 @@ def run_probes(
             )
 
             status, inconclusive_reason = _case_status(base_rr, head_rr)
+            execution_status = "success"
+            if status == "inconclusive":
+                execution_status = "inconclusive"
+            elif any(_is_exception_record(r.first.output) for r in (base_rr, head_rr)):
+                execution_status = "exception"
 
             case_results.append({
                 "id":                  case["id"],
@@ -155,7 +160,8 @@ def run_probes(
                 "kwargs":              case.get("kwargs", {}),
                 "base_output":         base_rr.first.output,
                 "head_output":         head_rr.first.output,
-                "status":              status,
+                "execution_status":    execution_status,
+                "comparison_status":   None if status == "inconclusive" else status,
                 "inconclusive_reason": inconclusive_reason,
                 "base_executed_at":    base_rr.first.executed_at,
                 "head_executed_at":    head_rr.first.executed_at,

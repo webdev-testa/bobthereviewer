@@ -148,7 +148,13 @@ def _assemble_evidence(
             "skipped": triage.skipped,
             "skip_reason": triage.skip_reason,
         },
-        "analysis_limits": analysis_result.analysis_limits,
+        "analysis_limits": {
+            **analysis_result.analysis_limits,
+            "notes": [
+                *analysis_result.analysis_limits.get("notes", []),
+                *exec_result.execution_notes,
+            ],
+        },
         "changed_functions": [
             changed_function_to_dict(cf)
             for cf in analysis_result.changed_functions
