@@ -323,3 +323,12 @@ def test_contract_error_is_readable():
         msg = str(exc)
         assert "Contract violation" in msg
         assert "Traceback" not in msg
+
+
+def test_probe_case_that_raised_an_exception_is_valid_evidence():
+    """An exception record is also a JSON object; oneOf rejected it for matching both (Act 4 crashed)."""
+    data = json.loads((FIXTURES_DIR / "evidence_rounding_change.json").read_text())
+    case = data["probe_results"][0]["cases"][0]
+    case["base_output"] = {"exception": "ModuleNotFoundError", "message": "No module named 'tax_tables'"}
+    case["head_output"] = {"exception": "ValueError", "message": "bad input"}
+    validate_evidence(data)
