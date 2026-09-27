@@ -22,12 +22,12 @@ export const STATUS_PRIORITY: EvidenceStatus[] = [
   'behavior_differs', 'inconclusive', 'unknown_edge', 'needs_probe', 'same', 'outside_diff', 'changed',
 ]
 
-export function StatusBadge({ status, className }: { status: EvidenceStatus; className?: string }) {
+export function StatusBadge({ status, count, className }: { status: EvidenceStatus; count?: number; className?: string }) {
   const { label, icon: Icon, tone } = STATUS_META[status]
   return (
     <Badge variant="outline" className={cn(TONE_CLASSES[tone], className)}>
       <Icon aria-hidden="true" />
-      {label}
+      {count === undefined ? label : `${count} · ${label}`}
     </Badge>
   )
 }
