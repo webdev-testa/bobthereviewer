@@ -345,7 +345,7 @@ def lookup(
             continue  # skip malformed files
 
         if (
-            record.get("repository") == repo
+            same_repository(record.get("repository"), repo)
             and record.get("file_path") == file_path
             and record.get("symbol") == symbol
         ):
@@ -399,6 +399,17 @@ def load_branch_decisions(
     return records
 
 
+def same_repository(a: str | None, b: str | None) -> bool:
+    """Whether two remote URLs name the same repository.
+
+    A decision recorded locally stores the remote as `git remote` prints it (often with `.git`),
+    while the GitHub Action checks out without it; an exact match hid every approved decision.
+    """
+    def normal(url: str | None) -> str:
+        return (url or "").strip().rstrip("/").removesuffix(".git").lower()
+    return normal(a) == normal(b)
+
+
 def approved_for_symbols(
     repo: str,
     symbols: dict[str, str],
@@ -415,7 +426,7 @@ def approved_for_symbols(
     matched: list[dict] = []
     for record in load_branch_decisions(default_branch, repo_root):
         key = (record.get("file_path"), record.get("symbol"))
-        if key in wanted and record.get("repository", repo) == repo:
+        if key in wanted and same_repository(record.get("repository", repo), repo):
             matched.append(record)
     return matched
 
