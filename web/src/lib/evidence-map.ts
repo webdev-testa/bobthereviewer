@@ -14,6 +14,8 @@ export interface MapEntry {
   line?: number
   status: EvidenceStatus
   isTest: boolean
+  /** Part of this change; stays marked even when a probe result recolors the box. */
+  isChanged: boolean
 }
 
 // Type aliases (not interfaces) so node data satisfies React Flow's Record<string, unknown>.
@@ -29,7 +31,7 @@ type Leaf = (Omit<EvidenceFlowNode, 'position'> | Omit<TestsFlowNode, 'position'
   & Pick<LayoutLeaf, 'file' | 'folder'>
 
 const shortName = (symbol: string) => symbol.split('.').pop() ?? symbol
-const isTestSymbol = (symbol: string) => symbol.split('.').some((part) => part === 'tests' || part.startsWith('test_'))
+export const isTestSymbol = (symbol: string) => symbol.split('.').some((part) => part === 'tests' || part.startsWith('test_'))
 const testsId = (targetKey: string) => `tests:${targetKey}`
 const dirname = (path: string) => path.split('/').slice(0, -1).join('/')
 
@@ -74,7 +76,7 @@ function evidenceModel(evidence: Evidence, expandedTests: ReadonlySet<string>) {
   for (const fn of evidence.changed_functions) {
     entries.set(fn.symbol, {
       key: fn.symbol, symbol: shortName(fn.symbol), path: fn.file_path,
-      status: probeStatus(evidence, fn.symbol) ?? 'changed', isTest: false,
+      status: probeStatus(evidence, fn.symbol) ?? 'changed', isTest: false, isChanged: true,
     })
   }
   for (const fn of evidence.changed_functions) {
@@ -88,7 +90,7 @@ function evidenceModel(evidence: Evidence, expandedTests: ReadonlySet<string>) {
         const fallback: EvidenceStatus = caller.in_diff ? 'changed' : caller.needs_probe ? 'needs_probe' : 'outside_diff'
         entries.set(caller.symbol, {
           key: caller.symbol, symbol: shortName(caller.symbol), path: caller.file_path, line: caller.line,
-          status: probeStatus(evidence, caller.symbol) ?? fallback, isTest,
+          status: probeStatus(evidence, caller.symbol) ?? fallback, isTest, isChanged: caller.in_diff,
         })
       }
       const via = caller.via?.length ? ` via ${caller.via.map((v) => shortName(v.symbol)).join(' → ')}` : ''
@@ -96,7 +98,7 @@ function evidenceModel(evidence: Evidence, expandedTests: ReadonlySet<string>) {
     }
     fn.unknown_references.forEach((ref) => {
       const key = `unknown:${ref.file_path}:${ref.line}`
-      entries.set(key, { key, symbol: 'Unknown reference', path: ref.file_path, line: ref.line, status: 'unknown_edge', isTest: false })
+      entries.set(key, { key, symbol: 'Unknown reference', path: ref.file_path, line: ref.line, status: 'unknown_edge', isTest: false, isChanged: false })
       edges.push(callEdge(key, fn.symbol, `Unknown edge: ${ref.reason} at ${ref.file_path}:${ref.line}`, true))
     })
   }
