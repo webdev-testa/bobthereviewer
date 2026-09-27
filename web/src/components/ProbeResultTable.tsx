@@ -18,7 +18,10 @@ interface Props {
 export function ProbeResultTable({ result, onSaveDecision }: Props) {
   return (
     <div className="space-y-1">
-      <div className="text-xs text-muted-foreground font-mono mb-1">{result.probe_file}</div>
+      <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+        <code className="font-semibold">{result.target}</code>
+        <span className="text-xs text-muted-foreground">{result.probe_file}</span>
+      </p>
       <Table>
         <TableHeader>
           <TableRow>
