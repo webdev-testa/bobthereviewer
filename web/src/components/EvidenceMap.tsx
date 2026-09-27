@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState } from 'react'
 import { Background, Controls, MiniMap, Panel, ReactFlow, ReactFlowProvider, type NodeProps } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { ChevronDown, ChevronRight, CircleAlert, FileCode, FlaskConical, Folder, FolderClosed, Info, RotateCcw } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleAlert, FileCode, FlaskConical, Folder, FolderClosed, Info, PencilLine, RotateCcw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,7 +26,12 @@ function EvidenceNodeCard({ data: { entry, ports } }: NodeProps<EvidenceFlowNode
       <span className="truncate text-xs text-muted-foreground">
         {entry.path}{entry.line ? `:${entry.line}` : ''}{entry.isTest ? ' · test' : ''}
       </span>
-      <StatusBadge status={entry.status} className="w-fit" />
+      <span className="flex flex-wrap items-center gap-2">
+        <StatusBadge status={entry.status} />
+        {entry.isChanged && entry.status !== 'changed' ? (
+          <span className="flex items-center gap-1 text-xs font-medium text-info"><PencilLine aria-hidden="true" className="size-3" />Your change</span>
+        ) : null}
+      </span>
     </Card>
   )
 }
@@ -118,8 +123,9 @@ function LegendSheet() {
         <SheetHeader>
           <SheetTitle>How to read the map</SheetTitle>
           <SheetDescription>
-            Callers on the left, the changed code on the right, grouped by file. Each box is colored by what
-            execution showed. Drag boxes to rearrange; select one for details; hover an arrow for its call site.
+            Callers on the left, the changed code on the right, grouped by file. Colors show what running the
+            probes found: red differs, amber uncertain, green same, grey not checked. Blue marks your change.
+            Drag boxes to rearrange; select one for details; hover an arrow for its call site.
           </SheetDescription>
         </SheetHeader>
         <ul aria-label="Legend" className="space-y-3 px-4 pb-4">

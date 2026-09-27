@@ -13,7 +13,7 @@ export const STATUS_META: Record<EvidenceStatus, { label: string; icon: LucideIc
   needs_probe: { label: 'Needs a probe', icon: FlaskConical, tone: 'neutral' },
   same: { label: 'Same on tested cases', icon: Equal, tone: 'success' },
   changed: { label: 'Changed', icon: PencilLine, tone: 'info' },
-  outside_diff: { label: 'Outside diff', icon: FileSearch, tone: 'info' },
+  outside_diff: { label: 'Outside diff', icon: FileSearch, tone: 'neutral' },
   unknown_edge: { label: 'Unknown edge', icon: CircleDashed, tone: 'warning' },
 }
 
