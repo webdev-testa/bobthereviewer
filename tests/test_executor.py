@@ -143,3 +143,18 @@ class TestRepeatCheck:
         assert result.first.status_kind == "timeout"
         assert result.first is result.second
         assert result.is_nondeterministic is False
+
+
+def test_configured_venv_python_is_not_resolved_through_its_symlink(tmp_path):
+    """A venv's bin/python links to the base Python; resolving it hides the venv's packages."""
+    import os
+    from bobthereviewer.executor import resolve_interpreter
+
+    link = tmp_path / ".venv" / "bin" / "python"
+    link.parent.mkdir(parents=True)
+    try:
+        os.symlink(sys.executable, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not available on this system")
+    python_exe, _, _ = resolve_interpreter({"python_env": ".venv/bin/python"}, tmp_path)
+    assert Path(python_exe) == tmp_path.resolve() / ".venv" / "bin" / "python"

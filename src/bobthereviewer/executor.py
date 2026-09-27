@@ -234,7 +234,9 @@ def resolve_interpreter(
         if configured:
             p = Path(configured)
             if not p.is_absolute() and repo_root:
-                p = (Path(repo_root) / p).resolve()
+                # Never resolve the interpreter itself: a venv's python is a symlink to the base
+                # Python, and only the link path activates the venv (and its pytest).
+                p = root / p
             if p.exists():
                 return str(p), _display_interpreter(p, repo_root), None
 
