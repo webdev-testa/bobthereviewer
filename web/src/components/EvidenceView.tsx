@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { TriageBadge } from '@/components/TriageBadge'
-import { ProbeResultTable } from '@/components/ProbeResultTable'
+import { ProbeResults } from '@/components/ProbeResults'
 import { TestResultTable } from '@/components/TestResultTable'
 import { DecisionBadge } from '@/components/DecisionBadge'
 import { EvidenceMap } from '@/components/EvidenceMap'
@@ -83,15 +83,7 @@ export function EvidenceView({ evidence, onSaveDecision }: Props) {
       <Section title="Probe results">
         {evidence.probe_results.length === 0
           ? <p className="text-sm text-muted-foreground">No probes ran, so nothing was executed on both revisions. The map shows which callers need one.</p>
-          : evidence.probe_results.map((result) => (
-            <ProbeResultTable
-              key={result.probe_file}
-              result={result}
-              onSaveDecision={onSaveDecision
-                ? (caseId) => onSaveDecision(result.target, caseId, result.probe_file)
-                : undefined}
-            />
-          ))}
+          : <ProbeResults results={evidence.probe_results} onSaveDecision={onSaveDecision} />}
       </Section>
 
       <Section title="Test results">
