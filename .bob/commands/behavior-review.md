@@ -5,23 +5,25 @@
 #
 # This command is registered automatically by Bob IDE because
 # .bob/custom_modes.yaml defines a mode with slug: behavior-review.
-# This file provides additional invocation guidance and initial context.
+# This file provides the initial context for the session.
 
 ## Starting a Behavior Review
 
-Read the following files before beginning:
-- `PROJECT_SPEC.md` — full product specification
-- `contracts/evidence.schema.json` — evidence bundle schema
-- `contracts/decision.schema.json` — decision record schema
-- `contracts/probe.schema.json` — probe file schema
-- `handoffs/D.md` — Lane 4 handoff notes
+Ask the developer for the two refs if they have not given them:
 
-Then ask the developer:
-
-> "Ready to start a behavior review. Please provide:
-> 1. The **base ref** (e.g., `demo-base` or a commit SHA)
-> 2. The **head ref** (e.g., the branch name or commit SHA you want to review)
+> "Ready to start a behavior review. Please give me:
+> 1. The **base ref** — the branch, tag or commit to compare against (for example `main`)
+> 2. The **head ref** — the branch or commit to review (for example your feature branch or `HEAD`)
 >
-> I'll run the analysis and walk you through any differences found."
+> I'll run the analysis and walk you through anything it finds."
 
-Follow the workflow defined in the behavior-review mode's customInstructions.
+Then run the review and follow the workflow in the mode's customInstructions:
+
+    bobreviewer run --before <base_ref> --after <head_ref>
+
+The command prints the run folder it saved under `.bobreviewer/runs/<run_id>/`. Read
+`evidence.json` from there.
+
+Every rule in the mode applies: only real process output counts as evidence, an unknown or
+missing probe is never treated as safe, and the developer — not you — decides whether a
+difference was intended.
