@@ -1,34 +1,33 @@
-import { Info, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { CircleCheck, CircleHelp, Info, TriangleAlert } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
+import { TONE_CLASSES, type Tone } from '@/lib/tones'
 import type { DecisionRecord } from '@/types/evidence'
 
-const VERDICT_CONFIG = {
-  intended:   { label: 'Intended',   icon: <CheckCircle2 size={13} />, cls: 'text-success bg-success-muted border-success/30' },
-  unintended: { label: 'Unintended', icon: <AlertTriangle size={13} />, cls: 'text-danger bg-danger-muted border-danger/30' },
-  unresolved: { label: 'Unresolved', icon: <HelpCircle size={13} />,   cls: 'text-warning bg-warning-muted border-warning/30' },
+const VERDICT_CONFIG: Record<DecisionRecord['verdict'], { label: string; icon: LucideIcon; tone: Tone }> = {
+  intended:   { label: 'Intended',   icon: CircleCheck,   tone: 'success' },
+  unintended: { label: 'Unintended', icon: TriangleAlert, tone: 'danger' },
+  unresolved: { label: 'Unresolved', icon: CircleHelp,    tone: 'warning' },
 }
 
 interface Props { decision: DecisionRecord; isHistory?: boolean }
 
 export function DecisionBadge({ decision, isHistory = false }: Props) {
-  const cfg = VERDICT_CONFIG[decision.verdict]
+  const { label, icon: Icon, tone } = VERDICT_CONFIG[decision.verdict]
   return (
-    <div className="rounded-md border border-border bg-surface-raised px-3 py-2 space-y-1 text-sm">
-      <div className="flex items-center gap-2 flex-wrap">
-        <Badge variant="outline" className={cn('flex items-center gap-1 text-xs', cfg.cls)}>
-          {cfg.icon}{cfg.label}
+    <div className="space-y-1 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className={TONE_CLASSES[tone]}>
+          <Icon aria-hidden="true" />{label}
         </Badge>
-        <span className="text-xs text-muted font-mono">{decision.symbol}</span>
+        <code className="text-xs text-muted-foreground">{decision.symbol}</code>
       </div>
-      {decision.rationale && (
-        <p className="text-xs text-muted">{decision.rationale}</p>
-      )}
+      {decision.rationale && <p className="text-muted-foreground">{decision.rationale}</p>}
       {isHistory && (
-        <div className="flex items-center gap-1 text-xs text-info mt-1">
-          <Info size={12} />
+        <p className="flex items-center gap-1 text-xs text-info">
+          <Info aria-hidden="true" className="size-3" />
           This is prior context, not approval of the current change.
-        </div>
+        </p>
       )}
     </div>
   )

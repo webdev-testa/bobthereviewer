@@ -18,7 +18,7 @@ interface Props {
 export function ProbeResultTable({ result, onSaveDecision }: Props) {
   return (
     <div className="space-y-1">
-      <div className="text-xs text-muted font-mono mb-1">{result.probe_file}</div>
+      <div className="text-xs text-muted-foreground font-mono mb-1">{result.probe_file}</div>
       <Table>
         <TableHeader>
           <TableRow>
@@ -54,10 +54,10 @@ export function ProbeResultTable({ result, onSaveDecision }: Props) {
                     </Badge>
                   )}
                   {c.inconclusive_reason && (
-                    <div className="text-xs text-muted mt-0.5">{c.inconclusive_reason}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{c.inconclusive_reason}</div>
                   )}
                   {c.inconclusive_detail && (
-                    <div className="text-xs text-muted font-mono mt-0.5 truncate max-w-[200px]">{c.inconclusive_detail}</div>
+                    <div className="text-xs text-muted-foreground font-mono mt-0.5 truncate max-w-[200px]">{c.inconclusive_detail}</div>
                   )}
                 </TableCell>
                 {onSaveDecision && (

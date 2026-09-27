@@ -18,7 +18,7 @@ export function TestResultTable({ testResults }: Props) {
     ...Object.keys(testResults.head),
   ])).sort()
 
-  if (nodeIds.length === 0) return <div className="text-xs text-muted">No test results</div>
+  if (nodeIds.length === 0) return <div className="text-xs text-muted-foreground">No test results</div>
 
   return (
     <Table>
