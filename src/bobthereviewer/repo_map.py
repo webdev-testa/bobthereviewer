@@ -337,3 +337,29 @@ def validate_map(payload: dict) -> None:
     for unknown in payload["unknowns"]:
         if not isinstance(unknown, dict) or not _REQUIRED_UNKNOWN_KEYS <= set(unknown):
             raise ValueError(f"unknown entry is missing required keys: {unknown!r}")
+
+
+def save_for_run(repo_root: Path, evidence: dict, run_dir: Path) -> None:
+    """Build the map of the reviewed head commit and store it as ``run_dir/repo_map.json``.
+
+    Shared by `bobreviewer run` and reviews started from the web UI. Raises on failure; callers
+    note it and keep the review, which is valid evidence without a map.
+    """
+    import subprocess
+    from tempfile import TemporaryDirectory
+
+    with TemporaryDirectory(prefix="bobreviewer-map-") as tmp:
+        checkout = Path(tmp) / "tree"
+        added = subprocess.run(
+            ["git", "worktree", "add", "--detach", "-q", str(checkout), evidence["head_commit"]],
+            cwd=repo_root, capture_output=True, text=True,
+        )
+        if added.returncode != 0:
+            raise RuntimeError(added.stderr.strip() or "git worktree add failed")
+        try:
+            payload = build(checkout, repo_root, evidence.get("repository", "local"), evidence["head_commit"])
+            validate_map(payload)
+            write_map(payload, run_dir / "repo_map.json")
+        finally:
+            subprocess.run(["git", "worktree", "remove", "--force", str(checkout)],
+                           cwd=repo_root, capture_output=True, text=True)

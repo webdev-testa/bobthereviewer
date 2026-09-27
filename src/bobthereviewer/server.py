@@ -52,6 +52,7 @@ from bobthereviewer.run_store import (
     list_runs,
     save_evidence,
 )
+from bobthereviewer import repo_map
 from bobthereviewer.decide_cmd import DecideError, decide_from_run
 from bobthereviewer.pipeline import ProbeSpec, run_analysis_pipeline
 from bobthereviewer.progress import make_emitter, replay_events
@@ -459,6 +460,15 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
             def _emit(step: str, status: str, message: str) -> None:
                 state.put_event(run_id, emit(step, status, message))
 
+            # "done" lets the page load the run, so it waits until the repo map is saved too.
+            held_done: list[tuple[str, str, str]] = []
+
+            def _pipeline_emit(step: str, status: str, message: str) -> None:
+                if step == "done":
+                    held_done.append((step, status, message))
+                else:
+                    _emit(step, status, message)
+
             try:
                 result = run_analysis_pipeline(
                     repo_dir=repo_root,
@@ -467,9 +477,16 @@ class BobReviewerHandler(http.server.BaseHTTPRequestHandler):
                     probe_spec=probe_spec,
                     run_id=run_id,
                     execute=True,
-                    callback=_emit,
+                    callback=_pipeline_emit,
                 )
                 save_evidence(run_dir, result.evidence)
+                try:
+                    repo_map.save_for_run(repo_root, result.evidence, run_dir)
+                except Exception as exc:  # noqa: BLE001 - a missing map must not void the review
+                    held_done = [(step, status, f"{message} (repository map not written: {exc})")
+                                 for step, status, message in held_done]
+                for event in held_done:
+                    _emit(*event)
             except Exception as exc:
                 fail_run(run_dir)
                 _emit("error", "failed", str(exc))
