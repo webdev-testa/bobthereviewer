@@ -9,6 +9,8 @@ import any other bobreviewer module.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 
@@ -19,6 +21,35 @@ def _fmt_output(value: Any) -> str:
     if isinstance(value, dict) and "exception" in value:
         return f"`{value['exception']}: {value.get('message', '')}`"
     return f"`{value!r}`"
+
+
+def _decision_for(case_id: str, target: str, probe_hash: str, decisions: list[dict]) -> dict | None:
+    """The head-revision decision matching this case, if the author has made one.
+
+    Matched on symbol, case id and probe hash so a decision for a different probe, or for a
+    probe whose bytes changed since, is never shown as if it applied here.
+    """
+    for record in decisions or []:
+        if record.get("case_id") != case_id:
+            continue
+        if record.get("symbol") != target:
+            continue
+        recorded_hash = record.get("probe_hash")
+        if recorded_hash and probe_hash and recorded_hash != probe_hash:
+            continue
+        return record
+    return None
+
+
+def _decision_cell(case_id: str, target: str, probe_hash: str, decisions: list[dict]) -> str:
+    """The decision column for one differing case: the verdict, or a prompt for one."""
+    record = _decision_for(case_id, target, probe_hash, decisions)
+    if record is None:
+        return "⚠️ No decision yet"
+    verdict = (record.get("verdict") or "unresolved").capitalize()
+    rationale = (record.get("rationale") or "").strip()
+    return f"**{verdict}** — {rationale} (proposed — approved when merged)" if rationale \
+        else f"**{verdict}** (proposed — approved when merged)"
 
 
 def _status_label(status: str) -> str:
@@ -114,17 +145,29 @@ def render_markdown(evidence: dict) -> str:  # noqa: C901 (complexity acceptable
     if probe_results:
         a("### Probe results")
         a("")
+        head_decisions = evidence.get("decisions", [])
         for pr in probe_results:
             a(f"**Probe:** `{pr['probe_file']}` — `{pr['target']}`")
             a("")
-            a("| Case | Before | After | Status |")
-            a("|---|---|---|---|")
+            a("| Case | Before | After | Status | Decision |")
+            a("|---|---|---|---|---|")
             for c in pr.get("cases", []):
                 reason = f" ({c['inconclusive_reason']})" if c.get("inconclusive_reason") else ""
                 status = c.get("comparison_status") or c["execution_status"]
+                decision_cell = ""
+                if status == "differ":
+                    # Only a difference needs a human disposition; say so next to it.
+                    decision_cell = _decision_cell(
+                        c.get("id", ""), pr.get("target", ""), pr.get("probe_hash", ""),
+                        head_decisions,
+                    )
                 a(f"| `{c['id']}` | {_fmt_output(c.get('base_output'))} "
                   f"| {_fmt_output(c.get('head_output'))} "
-                  f"| {_status_label(status)}{reason} |")
+                  f"| {_status_label(status)}{reason} | {decision_cell} |")
+            a("")
+        if any(c.get("comparison_status") == "differ"
+               for pr in probe_results for c in pr.get("cases", [])):
+            a("> A difference with no decision yet is unresolved work, not an approval.")
             a("")
 
     notes = evidence.get("analysis_limits", {}).get("notes", [])

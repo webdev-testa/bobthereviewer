@@ -31,8 +31,9 @@ Ownership: Lane 1.
 from __future__ import annotations
 
 import datetime
+import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
@@ -45,6 +46,50 @@ from bobthereviewer.triage import TriageResult, classify
 ProgressCallback = Callable[[str, str, str], None]
 
 _NOOP: ProgressCallback = lambda step, status, msg: None
+
+_DEFAULT_TEST_ROOT = "tests"
+
+
+def _test_root_for(ctx: WorktreeContext) -> str:
+    """The project's test folder, from `.bobreviewer/config.json` when present.
+
+    Read from the base worktree so a change cannot widen or narrow the definition of "test"
+    for its own review.
+    """
+    try:
+        config_path = Path(ctx.base_path) / ".bobreviewer" / "config.json"
+        if config_path.exists():
+            value = json.loads(config_path.read_text(encoding="utf-8"))
+            configured = value.get("test_root") or value.get("tests_dir")
+            if isinstance(configured, str) and configured.strip():
+                return configured.strip().strip("/")
+    except (OSError, ValueError):
+        pass
+    return _DEFAULT_TEST_ROOT
+
+
+def _apply_probe_coverage(analysis_result, probe_results: list[dict]) -> None:
+    """Clear `needs_probe` on callers that an executed probe already covers.
+
+    A caller is covered when it is the target of a probe that actually ran, so Bob stops
+    asking for probes that already exist. Mutates the analysis result in place.
+    """
+    covered: set[str] = set()
+    for probe in probe_results or []:
+        target = probe.get("target")
+        if isinstance(target, str) and target:
+            covered.add(target)
+        for case in probe.get("cases", []):
+            case_target = case.get("target")
+            if isinstance(case_target, str) and case_target:
+                covered.add(case_target)
+    if not covered:
+        return
+    for cf in analysis_result.changed_functions:
+        cf.callers = [
+            replace(c, needs_probe=False) if c.symbol in covered else c
+            for c in cf.callers
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -161,31 +206,80 @@ def _assemble_evidence(
         ],
         "test_results": exec_result.test_results,
         "probe_results": exec_result.probe_results,
-        "decisions": _load_approved_decisions(ctx, analysis_result),
+        # Decisions committed on the head revision: what the author has already decided.
+        "decisions": _load_head_decisions(ctx),
+        # Decisions merged into the default branch: prior context, never automatic approval.
+        "prior_decisions": _load_approved_decisions(ctx, analysis_result),
     }
 
 
-def _load_approved_decisions(ctx: WorktreeContext, analysis_result) -> list[dict]:
-    """Load matching approved decisions from .bobreviewer/decisions/."""
+def _default_branch_for(ctx: WorktreeContext) -> str:
+    """The branch a decision must be merged into to count as approved.
+
+    From `.bobreviewer/config.json` (`base_branch`) in the base worktree, falling back to
+    `main`. Deliberately NOT `ctx.base_ref`: comparing against a tag or a feature branch would
+    treat decisions that were never merged as approved history.
+    """
+    try:
+        config_path = Path(ctx.base_path) / ".bobreviewer" / "config.json"
+        if config_path.exists():
+            value = json.loads(config_path.read_text(encoding="utf-8"))
+            configured = value.get("base_branch")
+            if isinstance(configured, str) and configured.strip():
+                return configured.strip()
+    except (OSError, ValueError):
+        pass
+    return "main"
+
+
+def _load_head_decisions(ctx: WorktreeContext) -> list[dict]:
+    """Decisions the author has committed on the **head** revision.
+
+    These are proposed (or approved if they were merged earlier), and they are what the PR
+    comment shows next to each difference. Read from the head worktree, not the local tree,
+    so the report describes the revision under review.
+    """
     decisions: list[dict] = []
     try:
-        from bobthereviewer.decisions import lookup
-        decisions_dir = ctx.repo_root / ".bobreviewer" / "decisions"
-        if decisions_dir.exists():
-            seen: set[tuple] = set()
-            for cf in analysis_result.changed_functions:
-                matches = lookup(
-                    repo=ctx.repository_url,
-                    file_path=cf.file_path,
-                    symbol=cf.symbol,
-                    default_branch=ctx.base_ref,
-                    decisions_dir=decisions_dir,
-                )
-                for d in matches:
-                    key = (d.get("symbol"), d.get("head_commit"), d.get("case_id"))
-                    if key not in seen:
-                        seen.add(key)
-                        decisions.append(d)
+        decisions_dir = Path(ctx.head_path) / ".bobreviewer" / "decisions"
+        if not decisions_dir.exists():
+            return []
+        for path in sorted(decisions_dir.glob("*.json")):
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            if isinstance(record, dict) and record.get("symbol"):
+                decisions.append(record)
+    except OSError:
+        pass
+    return decisions
+
+
+def _load_approved_decisions(ctx: WorktreeContext, analysis_result) -> list[dict]:
+    """Approved decisions for the symbols under review, read from the default branch.
+
+    Approval means the decision is reachable on the configured default branch. This is asked
+    of git, not of the working tree: a decision that was merged into `main` is approved even
+    when the checkout is on a branch that predates the merge.
+    """
+    decisions: list[dict] = []
+    try:
+        from bobthereviewer.decisions import approved_for_symbols
+        repo_root = Path(ctx.repo_root)
+        symbols: dict[str, str] = {}
+        for cf in analysis_result.changed_functions:
+            symbols[cf.symbol] = cf.file_path
+            for caller in getattr(cf, "callers", []):
+                symbols.setdefault(caller.symbol, caller.file_path)
+        if not symbols:
+            return []
+        decisions = approved_for_symbols(
+            repo=ctx.repository_url,
+            symbols=symbols,
+            default_branch=_default_branch_for(ctx),
+            repo_root=repo_root,
+        )
     except Exception:
         pass
     return decisions
@@ -256,7 +350,9 @@ def run_analysis_pipeline(
 
         # ---- Analysis ----
         callback("analyze", "started", "Parsing ASTs and tracing callers")
-        analysis_result = analyze(ctx.base_path, ctx.head_path, ctx.changed_files)
+        analysis_result = analyze(
+            ctx.base_path, ctx.head_path, ctx.changed_files, test_root=_test_root_for(ctx)
+        )
         callback("analyze", "completed",
                  f"{len(analysis_result.changed_functions)} changed function(s) found")
 
@@ -267,6 +363,9 @@ def run_analysis_pipeline(
             )
         else:
             exec_result = ExecutionResult()
+
+        # A caller an executed probe already covers no longer needs one (B3).
+        _apply_probe_coverage(analysis_result, exec_result.probe_results)
 
         # ---- Assemble evidence ----
         evidence = _assemble_evidence(
