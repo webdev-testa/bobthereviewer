@@ -197,3 +197,17 @@ def test_prior_section_lists_only_approved_decisions():
     assert "Prior decisions" not in branch_only
     approved = render_markdown({**evidence, "decisions": [], "prior_decisions": [decision]})
     assert "Prior decisions" in approved and "Tax rate raised" in approved
+
+
+def test_report_groups_test_callers_into_one_line():
+    evidence = json.loads((Path(__file__).parent / "fixtures" / "evidence_rounding_change.json").read_text(encoding="utf-8"))
+    evidence["changed_functions"][0]["callers"] = [
+        {"symbol": "invoice.calculate_invoice", "file_path": "invoice.py", "line": 8, "in_diff": False,
+         "resolution": "resolved", "needs_probe": True, "via": None},
+        {"symbol": "tests.test_discount.test_no_discount", "file_path": "tests/test_discount.py", "line": 16,
+         "in_diff": False, "resolution": "resolved", "needs_probe": False, "via": None},
+    ]
+    md = render_markdown(evidence)
+    assert "| `invoice.calculate_invoice` |" in md
+    assert "| `tests.test_discount.test_no_discount` |" not in md
+    assert "**1 test(s) call it:** `test_no_discount`" in md
