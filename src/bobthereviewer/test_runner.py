@@ -317,6 +317,24 @@ def _run_pytest(
     return results
 
 
+def _step_summary(side: str, results: dict) -> tuple[str, str]:
+    """Progress status and message for one side's test run.
+
+    Entries named ``<...>`` (``<pytest>``, ``<collection>``, ``<suite timeout>``, ``<parse error>``)
+    record why tests could not run; they are not tests. Counting them as tests printed a green
+    "1 test(s)" for a run where nothing ran.
+    """
+    real = {k: v for k, v in results.items() if not k.startswith("<")}
+    problems = [v.get("message") or k for k, v in results.items() if k.startswith("<")]
+    if problems and not real:
+        return "failed", f"{side}: tests did not run — {problems[0]}"
+    counts = {s: sum(1 for v in real.values() if v.get("status") == s) for s in ("pass", "fail", "error")}
+    message = f"{side}: {len(real)} test(s) — {counts['pass']} passed, {counts['fail']} failed, {counts['error']} error(s)"
+    if problems:
+        return "failed", f"{message}; {problems[0]}"
+    return "completed", message
+
+
 def run_tests(
     base_worktree_path: str,
     head_worktree_path: str,
@@ -354,11 +372,11 @@ def run_tests(
     # Run on base
     emit("test_base", "started", f"Running {len(frozen_rel_paths)} frozen test file(s) on base")
     base_results = _run_pytest(base_worktree_path, python_exe, frozen_rel_paths, timeout_seconds, src_layout)
-    emit("test_base", "completed", f"base: {len(base_results)} test(s)")
+    emit("test_base", *_step_summary("base", base_results))
 
     # Run same frozen file list on head
     emit("test_head", "started", f"Running {len(frozen_rel_paths)} frozen test file(s) on head")
     head_results = _run_pytest(head_worktree_path, python_exe, frozen_rel_paths, timeout_seconds, src_layout)
-    emit("test_head", "completed", f"head: {len(head_results)} test(s)")
+    emit("test_head", *_step_summary("head", head_results))
 
     return {"base": base_results, "head": head_results}, frozen_suite_hash
