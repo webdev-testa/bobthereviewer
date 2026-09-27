@@ -71,7 +71,7 @@ Until Lane 4 confirms this signature, Sub-Task 15 (`POST /decide`) uses a type-c
 
 ### Sub-Task 1 — Package scaffold and contracts
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Before any runner code can be written or tested, the Python package must exist with its entry point declared and the shared contract schema files committed. This unblocks all other sub-tasks and allows Lane 1 to lock schemas.
@@ -104,7 +104,7 @@ Before any runner code can be written or tested, the Python package must exist w
 
 ### Sub-Task 2 — Bootstrap script (`bobreviewer._bootstrap`)
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 The bootstrap script is the core isolation primitive. It runs *inside* the worktree subprocess, inserts the worktree root and optional `src/` subdir onto `sys.path`, imports the target function by dotted name, calls it with the supplied args/kwargs, and returns a JSON-encoded result to stdout. It must distinguish import-time failures from call-time exceptions so the caller can assign the correct evidence status.
@@ -140,7 +140,7 @@ The bootstrap script is the core isolation primitive. It runs *inside* the workt
 
 ### Sub-Task 3 — Host-side probe case executor
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 The host-side executor wraps the subprocess launch. It accepts a worktree path, the resolved Python interpreter path, and a single probe case dict; spawns the bootstrap script as a subprocess with a timeout; parses stdout; and returns a typed result dict matching the evidence case schema.
@@ -171,7 +171,7 @@ The host-side executor wraps the subprocess launch. It accepts a worktree path, 
 
 ### Sub-Task 4 — Nondeterminism check
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Each probe case runs twice per side. Diverging outputs within the same revision → `inconclusive / nondeterminism_detected`. This check precedes cross-side comparison.
@@ -198,7 +198,7 @@ Each probe case runs twice per side. Diverging outputs within the same revision 
 
 ### Sub-Task 5 — Probe selector (frozen probe selection rule)
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Determine which probe files to run and which bytes to use on each side before any execution starts. Must scan both canonical (`.bobreviewer/probes/`) and legacy (`probes/`) locations.
@@ -230,7 +230,7 @@ Determine which probe files to run and which bytes to use on each side before an
 
 ### Sub-Task 6 — Probe runner (assembles cases into evidence probe_results)
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Ties together selector, executor, and nondeterminism check. Emits progress events around each step. Produces the `probe_results[]` list that Lane 1 writes into `evidence.json`.
@@ -265,7 +265,7 @@ Ties together selector, executor, and nondeterminism check. Emits progress event
 
 ### Sub-Task 7 — Sample project and demo-base / demo-rounding-change Git tags
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 The demo scenario is the only integration test that proves the whole Lane 2 stack works end-to-end. Creates the minimal sample project for Scenario 1 (rounding change) and the immutable `demo-base` annotated tag.
@@ -295,7 +295,7 @@ The demo scenario is the only integration test that proves the whole Lane 2 stac
 
 ### Sub-Task 8 — Frozen test suite runner
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Runs pytest in a subprocess against each worktree using the base revision's test config. Captures pass/fail/error per node ID. Returns `test_results` dict and `frozen_suite_hash`.
@@ -328,7 +328,7 @@ Runs pytest in a subprocess against each worktree using the base revision's test
 
 ### Sub-Task 9 — Prior-report linking
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 When `--prior-report` is supplied, link new probe result entries to earlier `differ` entries by `probe_file + probe_hash`. Enables Act 1 rerun to show resolution of an earlier difference.
@@ -353,7 +353,7 @@ When `--prior-report` is supplied, link new probe result entries to earlier `dif
 
 ### Sub-Task 10 — Expected-output validator and remaining four demo scenarios
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Build the volatile-field-stripping comparator for L2-P0-8 and scaffold the remaining four demo scenarios with their tagged commits and expected output files.
@@ -382,7 +382,7 @@ Build the volatile-field-stripping comparator for L2-P0-8 and scaffold the remai
 
 ### Sub-Task 11 — Progress event emitter
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Single `emit_progress()` function shared by all runner modules. During CLI runs it writes NDJSON to stdout. During server runs it writes to stdout *and* appends to a per-run `events.jsonl` file that the SSE endpoint can replay for late-connecting clients.
@@ -411,7 +411,7 @@ Single `emit_progress()` function shared by all runner modules. During CLI runs 
 
 ### Sub-Task 12 — Saved-run store
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Persist completed runs atomically under `.bobreviewer/runs/<run_id>/`. Write `meta.json` at run start so interrupted runs are detectable on the next `bobreviewer ui` launch. Atomic `evidence.json` write prevents half-written files.
@@ -444,7 +444,7 @@ Persist completed runs atomically under `.bobreviewer/runs/<run_id>/`. Write `me
 
 ### Sub-Task 13 — Local server: runs and progress endpoints
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 The core server handler serving the runs list, individual run evidence, new run start (with one-at-a-time enforcement), and SSE progress stream. Uses `http.server.BaseHTTPRequestHandler` with hand-written routing.
@@ -476,7 +476,7 @@ The core server handler serving the runs list, individual run evidence, new run 
 
 ### Sub-Task 14 — Local server: security layer
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 All security constraints from L2-P0-9 and L2-P1-3/4 must be enforced at the handler boundary before any business logic runs. None of these constraints should live inside individual handler methods.
@@ -508,7 +508,7 @@ All security constraints from L2-P0-9 and L2-P1-3/4 must be enforced at the hand
 
 ### Sub-Task 15 — `POST /decide` endpoint
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 Thin pass-through endpoint that reads observed values from the saved run (never from the request body), delegates validation to Lane 4's decision service, and returns the written file path and suggested git command.
@@ -544,7 +544,7 @@ Thin pass-through endpoint that reads observed values from the saved run (never 
 
 ### Sub-Task 16 — Static asset serving (`GET /`)
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 **Intent:**
 The server must serve the pre-built developer UI frontend that Lane 3 commits to `src/bobreviewer/frontend/`. This is a simple file-serving task; the frontend is a SPA that navigates client-side using the API.
