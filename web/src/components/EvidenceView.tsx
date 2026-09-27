@@ -1,10 +1,14 @@
-import { AlertTriangle } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ExternalLink, TriangleAlert } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { TriageBadge } from '@/components/TriageBadge'
 import { ChangedFunctionCard } from '@/components/ChangedFunctionCard'
 import { TestResultTable } from '@/components/TestResultTable'
 import { DecisionBadge } from '@/components/DecisionBadge'
-import { CallerMap } from '@/components/CallerMap'
+import { EvidenceMap } from '@/components/EvidenceMap'
 import type { Evidence } from '@/types/evidence'
 
 interface Props {
@@ -12,74 +16,95 @@ interface Props {
   onSaveDecision?: (symbol: string, caseId: string, probeFile: string) => void
 }
 
+function formatTime(iso: string) {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Card>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+      <CardContent className="space-y-4">{children}</CardContent>
+    </Card>
+  )
+}
+
+function Summary({ evidence }: { evidence: Evidence }) {
+  return (
+    <Card>
+      <CardHeader className="gap-3">
+        <p className="text-sm text-muted-foreground">Behavior review</p>
+        <h1 className="text-2xl font-semibold tracking-tight break-words">{evidence.repository}</h1>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <span>base <code className="text-foreground">{evidence.base_ref}</code> ({evidence.base_commit.slice(0, 7)})</span>
+          <span aria-hidden="true">→</span>
+          <span>head <code className="text-foreground">{evidence.head_ref}</code> ({evidence.head_commit.slice(0, 7)})</span>
+          <span aria-hidden="true">·</span>
+          <time dateTime={evidence.generated_at}>{formatTime(evidence.generated_at)}</time>
+        </p>
+      </CardHeader>
+      <Separator />
+      <CardContent className="flex flex-col gap-4 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium">Triage</span>
+          <TriageBadge triage={evidence.triage} />
+        </div>
+        {evidence.ci_run_url?.startsWith('https://') ? (
+          <Button asChild variant="outline" size="sm">
+            <a href={evidence.ci_run_url} target="_blank" rel="noreferrer">
+              GitHub Actions run
+              <ExternalLink aria-hidden="true" />
+            </a>
+          </Button>
+        ) : (
+          <span className="text-sm text-muted-foreground">Run {evidence.run_id.slice(0, 8)}</span>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function EvidenceView({ evidence, onSaveDecision }: Props) {
   return (
-    <div className="space-y-6">
-      {/* Fixture banner */}
+    <div className="space-y-8">
       {evidence.fixture && (
-        <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning-muted px-3 py-2 text-xs text-warning">
-          <AlertTriangle size={13} className="shrink-0" />
-          Fixture data — not real evidence. Replace with output from <code className="font-mono">bobreviewer run</code>.
-        </div>
+        <Alert variant="destructive">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>FIXTURE — not real evidence</AlertTitle>
+          <AlertDescription>
+            Replace with output from <code>bobreviewer run</code>. Nothing on this page came from a real run.
+          </AlertDescription>
+        </Alert>
       )}
-      {/* Header */}
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <TriageBadge triage={evidence.triage} />
-          <span className="text-xs text-muted font-mono">{evidence.base_ref} → {evidence.head_ref}</span>
-        </div>
-        <div className="text-xs text-muted">Run {evidence.run_id.slice(0, 8)} · {new Date(evidence.generated_at).toLocaleString()}</div>
-        {evidence.ci_run_url && (
-          <a href={evidence.ci_run_url} className="text-xs text-info underline" target="_blank" rel="noopener noreferrer">
-            CI run ↗
-          </a>
-        )}
-      </div>
+      <Summary evidence={evidence} />
+      <EvidenceMap evidence={evidence} />
 
-      <Separator />
-
-      {/* Changed functions */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold">Changed functions</h2>
+      <Section title="Changed functions">
         {evidence.changed_functions.length === 0
-          ? <p className="text-xs text-muted">No changed functions detected.</p>
+          ? <p className="text-sm text-muted-foreground">No changed functions detected.</p>
           : evidence.changed_functions.map((fn) => (
-            <div key={fn.symbol} className="space-y-2">
-              <ChangedFunctionCard
-                  fn={fn}
-                  probeResults={evidence.probe_results}
-                  onSaveDecision={onSaveDecision
-                    ? (caseId, probeFile) => onSaveDecision(fn.symbol, caseId, probeFile)
-                    : undefined}
-                />
-              <CallerMap fn={fn} />
-            </div>
-          ))
-        }
-      </section>
+            <ChangedFunctionCard
+              key={fn.symbol}
+              fn={fn}
+              probeResults={evidence.probe_results}
+              onSaveDecision={onSaveDecision
+                ? (caseId, probeFile) => onSaveDecision(fn.symbol, caseId, probeFile)
+                : undefined}
+            />
+          ))}
+      </Section>
 
-      <Separator />
-
-      {/* Test results */}
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold">Test results</h2>
+      <Section title="Test results">
         {evidence.triage.skipped
-          ? <p className="text-xs text-warning">Execution skipped — {evidence.triage.skip_reason ?? 'docs-only diff'}</p>
-          : <TestResultTable testResults={evidence.test_results} />
-        }
-      </section>
+          ? <p className="text-sm text-warning">Execution skipped — {evidence.triage.skip_reason ?? 'docs-only diff'}</p>
+          : <TestResultTable testResults={evidence.test_results} />}
+      </Section>
 
-      {/* Decisions */}
       {evidence.decisions.length > 0 && (
-        <>
-          <Separator />
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold">Prior decisions</h2>
-            {evidence.decisions.map((d, i) => (
-              <DecisionBadge key={i} decision={d} isHistory />
-            ))}
-          </section>
-        </>
+        <Section title="Prior decisions">
+          {evidence.decisions.map((d, i) => <DecisionBadge key={i} decision={d} isHistory />)}
+        </Section>
       )}
     </div>
   )

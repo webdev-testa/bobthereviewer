@@ -26,7 +26,7 @@ export function ChangedFunctionCard({ fn, probeResults, onSaveDecision }: Props)
         <CardTitle className="flex items-center gap-2 text-sm font-mono font-medium">
           <Code2 size={15} className="text-info shrink-0" />
           <span className="break-all">{fn.symbol}</span>
-          <span className="text-xs text-muted font-normal ml-1">{fn.file_path}</span>
+          <span className="text-xs text-muted-foreground font-normal ml-1">{fn.file_path}</span>
           <ChevronDown size={14} className={cn('ml-auto shrink-0 transition-transform', !open && '-rotate-90')} />
         </CardTitle>
       </CardHeader>
@@ -34,13 +34,13 @@ export function ChangedFunctionCard({ fn, probeResults, onSaveDecision }: Props)
         <CardContent className="px-4 pb-4 space-y-3">
           {fn.callers.length > 0 && (
             <div className="space-y-1">
-              <div className="text-xs font-medium text-muted uppercase tracking-wide">Callers</div>
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Callers</div>
               {fn.callers.map((c, i) => <CallerRow key={i} caller={c} />)}
             </div>
           )}
           {fn.unknown_references.length > 0 && (
             <div className="space-y-1">
-              <div className="text-xs font-medium text-muted uppercase tracking-wide">Unknown edges</div>
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Unknown edges</div>
               {fn.unknown_references.map((r, i) => <UnknownRefRow key={i} ref_={r} />)}
             </div>
           )}

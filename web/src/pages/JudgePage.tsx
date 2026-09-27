@@ -1,6 +1,12 @@
 import { useState } from 'react'
+import { Eye } from 'lucide-react'
+import { AppHeader } from '@/components/AppHeader'
 import { EvidenceView } from '@/components/EvidenceView'
+import { TONE_CLASSES } from '@/lib/tones'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { evidenceFixture } from '@/fixtures/evidence.fixture'
+import { useTheme } from '@/lib/use-theme'
 import type { Evidence } from '@/types/evidence'
 
 // In the judge build, Vite injects __JUDGE_EVIDENCE__ at build time.
@@ -10,38 +16,32 @@ const evidence: Evidence =
   typeof __JUDGE_EVIDENCE__ !== 'undefined' ? __JUDGE_EVIDENCE__ : evidenceFixture
 
 export function JudgePage() {
+  const themeControl = useTheme()
   const [previewTarget, setPreviewTarget] = useState<string | null>(null)
 
   return (
-    <div className="min-h-screen bg-surface">
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-base font-semibold">bobthereviewer</h1>
-          <span className="text-xs text-muted">Behavior review report</span>
-        </div>
-
+    <>
+      <AppHeader themeControl={themeControl} />
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+        {/* Session-only decision preview — no API calls, no file writes */}
+        {previewTarget && (
+          <Alert className={TONE_CLASSES.warning}>
+            <Eye aria-hidden="true" />
+            <AlertTitle>Demo preview — not saved</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>
+                In the local developer UI, this button saves a decision JSON file and prints a git command.
+                On this static page it is for demonstration only.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setPreviewTarget(null)}>Dismiss</Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <EvidenceView
           evidence={evidence}
           onSaveDecision={(symbol, caseId) => setPreviewTarget(`${symbol}:${caseId}`)}
         />
-
-        {/* Session-only decision preview — no API calls, no file writes */}
-        {previewTarget && (
-          <div className="rounded-md border border-warning/40 bg-warning-muted px-4 py-3 text-xs space-y-2">
-            <div className="font-medium text-warning">Demo preview — not saved</div>
-            <p className="text-muted">
-              In the local developer UI, this button saves a decision JSON file and prints a git command.
-              On this static page it is for demonstration only.
-            </p>
-            <button
-              onClick={() => setPreviewTarget(null)}
-              className="underline text-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-info rounded"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+      </main>
+    </>
   )
 }

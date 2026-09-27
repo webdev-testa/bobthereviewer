@@ -1,93 +1,62 @@
-import { useState } from 'react'
-import { RunList } from '@/components/RunList'
-import { ProgressPanel } from '@/components/ProgressPanel'
+import { useCallback, useEffect, useState } from 'react'
+import { CircleAlert, Play } from 'lucide-react'
+import { AppHeader } from '@/components/AppHeader'
 import { EvidenceView } from '@/components/EvidenceView'
+import { NewReviewDialog } from '@/components/NewReviewDialog'
+import { RunPicker } from '@/components/RunPicker'
 import { SaveDecisionDialog } from '@/components/SaveDecisionDialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
-import { getRun, startRun, streamProgress } from '@/lib/local-api'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { getRun, listRuns } from '@/lib/local-api'
+import { useTheme } from '@/lib/use-theme'
 import type { Evidence } from '@/types/evidence'
-import type { ProgressEvent } from '@/types/api'
+import type { RunSummary } from '@/types/api'
+
+const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback)
 
 export function DevPage() {
+  const themeControl = useTheme()
+  const [runs, setRuns] = useState<RunSummary[]>([])
   const [selectedRun, setSelectedRun] = useState<string | null>(null)
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [beforeRef, setBeforeRef] = useState('')
-  const [afterRef, setAfterRef] = useState('')
-  const [running, setRunning] = useState(false)
-  const [progressEvents, setProgressEvents] = useState<ProgressEvent[]>([])
   const [dialog, setDialog] = useState<{ symbol: string; caseId: string; probeFile: string } | null>(null)
+
+  const refreshRuns = useCallback(() => {
+    listRuns().then(setRuns).catch((e: unknown) => setLoadError(message(e, 'Failed to load runs')))
+  }, [])
+
+  useEffect(refreshRuns, [refreshRuns])
 
   async function handleSelectRun(id: string) {
     setSelectedRun(id)
     setLoadError(null)
     setEvidence(null)
     try {
-      const ev = await getRun(id)
-      setEvidence(ev)
+      setEvidence(await getRun(id))
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : 'Failed to load run')
+      setLoadError(message(e, 'Failed to load run'))
     }
   }
 
-  async function handleStartRun() {
-    if (!beforeRef.trim() || !afterRef.trim()) return
-    setRunning(true)
-    setProgressEvents([])
-    try {
-      const { run_id } = await startRun({ before_ref: beforeRef, after_ref: afterRef, probes: [] })
-      setSelectedRun(run_id)
-      streamProgress(
-        run_id,
-        (e) => setProgressEvents((prev) => [...prev, e]),
-        async () => {
-          setRunning(false)
-          const ev = await getRun(run_id).catch(() => null)
-          if (ev) setEvidence(ev)
-        },
-        () => setRunning(false),
-      )
-    } catch (e) {
-      setRunning(false)
-      setLoadError(e instanceof Error ? e.message : 'Failed to start run')
-    }
+  function handleReviewDone(id: string) {
+    refreshRuns()
+    void handleSelectRun(id)
   }
 
   return (
-    <div className="min-h-screen bg-surface flex">
-      {/* Sidebar */}
-      <aside className="w-64 shrink-0 border-r border-border flex flex-col">
-        <div className="px-3 py-3 border-b border-border">
-          <div className="text-xs font-semibold mb-2">New review</div>
-          <div className="space-y-1.5">
-            <Input placeholder="Base ref" value={beforeRef} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBeforeRef(e.target.value)} className="h-7 text-xs" />
-            <Input placeholder="Head ref" value={afterRef} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAfterRef(e.target.value)} className="h-7 text-xs" />
-            <Button size="sm" className="w-full h-7 text-xs" onClick={handleStartRun} disabled={running || !beforeRef || !afterRef}>
-              {running ? 'Running…' : 'Start review'}
-            </Button>
-          </div>
-        </div>
-        {running && (
-          <div className="border-b border-border">
-            <ProgressPanel events={progressEvents} />
-          </div>
+    <>
+      <AppHeader themeControl={themeControl} picker={<RunPicker runs={runs} selectedId={selectedRun} onSelect={handleSelectRun} />}>
+        <NewReviewDialog onDone={handleReviewDone} />
+      </AppHeader>
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+        {loadError && (
+          <Alert variant="destructive">
+            <CircleAlert aria-hidden="true" />
+            <AlertTitle>The review could not be shown</AlertTitle>
+            <AlertDescription>{loadError}</AlertDescription>
+          </Alert>
         )}
-        <div className="flex-1 overflow-y-auto py-2">
-          <div className="px-3 pb-1 text-xs font-semibold text-muted uppercase tracking-wide">History</div>
-          <RunList selectedId={selectedRun} onSelect={handleSelectRun} />
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main className="flex-1 overflow-y-auto px-6 py-8 max-w-3xl">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-base font-semibold">bobthereviewer</h1>
-          <span className="text-xs text-muted">Developer UI</span>
-        </div>
-        <Separator className="mb-6" />
-        {loadError && <p className="text-xs text-danger">{loadError}</p>}
         {evidence && (
           <EvidenceView
             evidence={evidence}
@@ -95,7 +64,17 @@ export function DevPage() {
           />
         )}
         {!evidence && !loadError && (
-          <p className="text-xs text-muted">Select a run from the sidebar or start a new one.</p>
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon"><Play aria-hidden="true" /></EmptyMedia>
+              <EmptyTitle>{runs.length ? 'Choose a review' : 'No reviews yet'}</EmptyTitle>
+              <EmptyDescription>
+                {runs.length
+                  ? 'Pick one from the list at the top, or start a new one.'
+                  : <>Start one with <strong>New review</strong>: the ref you're merging into and the one with your change.</>}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
       </main>
 
@@ -109,6 +88,6 @@ export function DevPage() {
           onClose={() => setDialog(null)}
         />
       )}
-    </div>
+    </>
   )
 }

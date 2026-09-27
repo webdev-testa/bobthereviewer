@@ -47,8 +47,8 @@ export function SaveDecisionDialog({ open, runId, symbol, caseId, probeFile, onC
         {result ? (
           <div className="space-y-2 text-sm">
             <div className="text-success">Decision saved.</div>
-            <div className="font-mono text-xs bg-surface-raised rounded px-2 py-1">{result.file_path}</div>
-            <div className="font-mono text-xs bg-surface-raised rounded px-2 py-1">{result.git_command}</div>
+            <div className="font-mono text-xs bg-muted/40 rounded px-2 py-1">{result.file_path}</div>
+            <div className="font-mono text-xs bg-muted/40 rounded px-2 py-1">{result.git_command}</div>
             <Button size="sm" onClick={onClose}>Close</Button>
           </div>
         ) : (
@@ -63,7 +63,7 @@ export function SaveDecisionDialog({ open, runId, symbol, caseId, probeFile, onC
                 </SelectContent>
               </Select>
               <textarea
-                className="w-full rounded-md border border-border bg-surface text-sm px-3 py-2 focus-visible:ring-2 focus-visible:ring-info outline-none resize-none"
+                className="w-full rounded-md border border-border bg-card text-sm px-3 py-2 focus-visible:ring-2 focus-visible:ring-info outline-none resize-none"
                 rows={3}
                 placeholder={isIntended ? 'Rationale (required for Intended)' : 'Rationale (optional)'}
                 value={rationale}
