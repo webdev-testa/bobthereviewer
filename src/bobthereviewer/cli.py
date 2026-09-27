@@ -296,13 +296,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     if output_dir is not None:
         print(f"  extra copy: {output_dir}")
 
-    if args.open and result.output_path:
-        import webbrowser
-        report_html = result.output_path.parent / "report.html"
-        if report_html.exists():
-            webbrowser.open(report_html.as_uri())
-        else:
-            print(f"\n  (--open: no report.html found alongside evidence.json)", file=sys.stderr)
+    if args.open:
+        # Stay in the foreground as the UI server (Ctrl+C stops it), like running `bobreviewer ui`.
+        from bobthereviewer import server
+        return server.start(argparse.Namespace(repo_dir=str(repo_root), port=7842, run_id=run_id))
 
     return 0
 
@@ -375,7 +372,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--full", action="store_true",
                        help="Force execution even for docs-only diffs")
     p_run.add_argument("--open", action="store_true",
-                       help="Open the result in a browser after the run")
+                       help="Show this run in the local web UI afterwards (serves until Ctrl+C)")
     p_run.add_argument("--output", metavar="DIR", default=None)
     p_run.add_argument("--repo-dir", metavar="DIR", default=None)
 
@@ -393,6 +390,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_ui = sub.add_parser("ui", help="Start the local developer UI server")
     p_ui.add_argument("--port", type=int, default=7842, metavar="PORT")
     p_ui.add_argument("--repo-dir", metavar="DIR", default=None)
+    p_ui.add_argument("--no-browser", action="store_true",
+                      help="Only print the URL; don't open a browser")
 
     return parser
 

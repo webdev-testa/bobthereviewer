@@ -506,3 +506,37 @@ def _is_valid_uuid4(value: str) -> bool:
         r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
         value.lower()
     ))
+
+
+# ---------------------------------------------------------------------------
+# G4 — the browser opens by itself
+# ---------------------------------------------------------------------------
+
+class TestOpenBrowser:
+    def test_ui_url_carries_token_and_run(self):
+        from bobthereviewer.server import ui_url
+        assert ui_url("127.0.0.1", 7842, "tok") == "http://127.0.0.1:7842/?token=tok"
+        assert ui_url("127.0.0.1", 7842, "tok", "abc") == "http://127.0.0.1:7842/?token=tok&run=abc"
+
+    @pytest.mark.parametrize("no_browser, opened", [(False, True), (True, False)])
+    def test_start_opens_browser_unless_disabled(self, tmp_path, monkeypatch, no_browser, opened):
+        import argparse
+        import webbrowser
+        from bobthereviewer import server
+        urls = []
+        monkeypatch.setattr(webbrowser, "open", urls.append)
+        monkeypatch.setattr(server.BobReviewerServer, "serve_forever", lambda self: (_ for _ in ()).throw(KeyboardInterrupt))
+        args = argparse.Namespace(repo_dir=str(tmp_path), port=0, no_browser=no_browser, run_id="abc")
+        assert server.start(args) == 0
+        assert bool(urls) is opened
+        if opened:
+            assert "token=" in urls[0] and urls[0].endswith("&run=abc")
+
+    def test_run_open_serves_the_new_run(self, git_repo, monkeypatch):
+        from bobthereviewer import server
+        from bobthereviewer.cli import main
+        started = []
+        monkeypatch.setattr(server, "start", lambda args: started.append(args) or 0)
+        assert main(["run", "--repo-dir", str(git_repo), "--before", "base", "--after", "head", "--open"]) == 0
+        run_id = started[0].run_id
+        assert (git_repo / ".bobreviewer" / "runs" / run_id / "evidence.json").exists()

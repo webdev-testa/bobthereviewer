@@ -650,6 +650,12 @@ def make_server(
 # Lane 1 CLI integration — `cli.cmd_ui` calls `server.start(args)`
 # ---------------------------------------------------------------------------
 
+def ui_url(host: str, port: int, token: str, run_id: str | None = None) -> str:
+    """The address the browser opens; `run_id` preselects that review."""
+    query = {"token": token, **({"run": run_id} if run_id else {})}
+    return f"http://{host}:{port}/?{urllib.parse.urlencode(query)}"
+
+
 def start(args: Any = None, port: int | None = None) -> int:
     """Serve the local developer UI and block until interrupted.
 
@@ -676,11 +682,11 @@ def start(args: Any = None, port: int | None = None) -> int:
 
     httpd, token = make_server(repo_dir, python_exe, port)
     host, bound_port = httpd.server_address[:2]
-    url = f"http://{host}:{bound_port}/?token={token}"
+    url = ui_url(host, bound_port, token, getattr(args, "run_id", None))
     print(f"bobthereviewer ui — serving {repo_dir}")
     print(f"  open: {url}")
     print("  local only (127.0.0.1); press Ctrl+C to stop.")
-    if getattr(args, "open", False):
+    if not getattr(args, "no_browser", False):
         try:
             webbrowser.open(url)
         except Exception:  # noqa: BLE001 - a browser that will not open is not fatal
