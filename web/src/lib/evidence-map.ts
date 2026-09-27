@@ -1,5 +1,5 @@
 import { MarkerType, type Node } from '@xyflow/react'
-import type { EvidenceStatus } from '@/components/StatusBadge'
+import { STATUS_PRIORITY, type EvidenceStatus } from '@/components/StatusBadge'
 import { layoutNested, type LayoutLeaf, type PortPlacement, type TooltipFlowEdge } from '@/lib/nested-layout'
 import type { Evidence } from '@/types/evidence'
 
@@ -21,9 +21,12 @@ type Ports = { ports: PortPlacement[] }
 export type EvidenceFlowNode = Node<{ entry: MapEntry } & Ports, 'evidence'>
 export type TestsFlowNode = Node<{ targetKey: string; target: MapEntry; count: number } & Ports, 'tests'>
 export type GroupFlowNode = Node<{ label: string; path: string }, 'folder' | 'file'>
-export type MapNode = EvidenceFlowNode | TestsFlowNode | GroupFlowNode
+export type CollapsedFlowNode = Node<{ path: string; label: string; count: number; status: EvidenceStatus } & Ports, 'collapsed'>
+export type MapNode = EvidenceFlowNode | TestsFlowNode | CollapsedFlowNode | GroupFlowNode
 
-type Leaf = (Omit<EvidenceFlowNode, 'position'> | Omit<TestsFlowNode, 'position'>) & Pick<LayoutLeaf, 'file' | 'folder'>
+type LeafNode = EvidenceFlowNode | TestsFlowNode | CollapsedFlowNode
+type Leaf = (Omit<EvidenceFlowNode, 'position'> | Omit<TestsFlowNode, 'position'> | Omit<CollapsedFlowNode, 'position'>)
+  & Pick<LayoutLeaf, 'file' | 'folder'>
 
 const shortName = (symbol: string) => symbol.split('.').pop() ?? symbol
 const isTestSymbol = (symbol: string) => symbol.split('.').some((part) => part === 'tests' || part.startsWith('test_'))
@@ -111,8 +114,61 @@ function evidenceModel(evidence: Evidence, expandedTests: ReadonlySet<string>) {
   return { leaves, edges }
 }
 
-export async function buildEvidenceMap(evidence: Evidence, expandedTests: ReadonlySet<string>): Promise<{ nodes: MapNode[]; edges: TooltipFlowEdge[] }> {
-  const { leaves, edges } = evidenceModel(evidence, expandedTests)
+/** "a/b/c" → ["a", "a/b", "a/b/c"]: the folders a leaf sits in, outermost first. */
+const foldersOf = (dir: string) => dir.split('/').filter(Boolean).map((_, i, parts) => parts.slice(0, i + 1).join('/'))
+
+/**
+ * Folds every leaf inside a collapsed folder into one box, and reroutes its edges to that box;
+ * calls inside one collapsed folder disappear with it, parallel ones merge with a count.
+ */
+function collapseFolders(leaves: Leaf[], edges: TooltipFlowEdge[], collapsed: ReadonlySet<string>) {
+  if (!collapsed.size) return { leaves, edges }
+  const unitOf = new Map<string, string>()
+  const boxes = new Map<string, { path: string; count: number; status: EvidenceStatus }>()
+  const kept: Leaf[] = []
+  for (const leaf of leaves) {
+    const folder = foldersOf(leaf.file ? dirname(leaf.file) : leaf.folder ?? '').find((f) => collapsed.has(f))
+    if (!folder) {
+      kept.push(leaf)
+      continue
+    }
+    const id = `collapsed:${folder}`
+    unitOf.set(leaf.id, id)
+    const box = boxes.get(id) ?? { path: folder, count: 0, status: 'changed' as EvidenceStatus }
+    box.count += leaf.type === 'tests' ? leaf.data.count : 1
+    if (leaf.type === 'evidence' && STATUS_PRIORITY.indexOf(leaf.data.entry.status) < STATUS_PRIORITY.indexOf(box.status)) {
+      box.status = leaf.data.entry.status
+    }
+    boxes.set(id, box)
+  }
+  const merged = new Map<string, TooltipFlowEdge[]>()
+  for (const edge of edges) {
+    const source = unitOf.get(edge.source) ?? edge.source
+    const target = unitOf.get(edge.target) ?? edge.target
+    if (source === target) continue
+    merged.set(`${source}->${target}`, [...(merged.get(`${source}->${target}`) ?? []), { ...edge, source, target }])
+  }
+  return {
+    leaves: [
+      ...kept,
+      ...[...boxes].map(([id, box]): Leaf => ({
+        id, type: 'collapsed', folder: dirname(box.path),
+        data: { ...box, label: box.path.split('/').pop() ?? box.path, ports: [] },
+      })),
+    ],
+    edges: [...merged.values()].map((group) => {
+      if (group.length === 1) return group[0]
+      const edge = callEdge(group[0].source, group[0].target, `${group.length} calls`, group.every((e) => e.data?.unknown))
+      return { ...edge, data: { ...edge.data!, badge: `${group.length} calls` } }
+    }),
+  }
+}
+
+export async function buildEvidenceMap(
+  evidence: Evidence, expandedTests: ReadonlySet<string>, collapsed: ReadonlySet<string>,
+): Promise<{ nodes: MapNode[]; edges: TooltipFlowEdge[] }> {
+  const model = evidenceModel(evidence, expandedTests)
+  const { leaves, edges } = collapseFolders(model.leaves, model.edges, collapsed)
   const layout = await layoutNested(
     leaves.map((leaf) => ({ id: leaf.id, width: NODE_WIDTH, height: NODE_HEIGHT, file: leaf.file, folder: leaf.folder })),
     edges,
@@ -138,7 +194,7 @@ export async function buildEvidenceMap(evidence: Evidence, expandedTests: Readon
       extent: spot.parentId ? ('parent' as const) : undefined,
       focusable: false,
       data: { ...leaf.data, ports: spot.ports },
-    } as EvidenceFlowNode | TestsFlowNode
+    } as LeafNode
   })
   return { nodes: [...groups, ...placed], edges: edges.map((edge) => ({ ...edge, ...layout.handles.get(edge.id) })) }
 }

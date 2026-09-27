@@ -1,16 +1,18 @@
-import { useMemo, useState } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 import { Background, Controls, MiniMap, Panel, ReactFlow, ReactFlowProvider, type NodeProps } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { CircleAlert, FileCode, FlaskConical, Info, RotateCcw } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleAlert, FileCode, FlaskConical, Folder, FolderClosed, Info, RotateCcw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import {
-  FolderGroup, LineSwatch, MINIMAP_FROM_NODES, PortHandles, TooltipEdge, UNKNOWN_EDGE_DASH, useAsyncLayout, useFlowColorMode,
+  LineSwatch, MINIMAP_FROM_NODES, PortHandles, TooltipEdge, UNKNOWN_EDGE_DASH, useAsyncLayout, useFlowColorMode,
 } from '@/components/map-parts'
 import { StatusBadge, STATUS_META, STATUS_PRIORITY } from '@/components/StatusBadge'
-import { buildEvidenceMap, type EvidenceFlowNode, type GroupFlowNode, type MapEntry, type MapNode, type TestsFlowNode } from '@/lib/evidence-map'
+import {
+  buildEvidenceMap, type CollapsedFlowNode, type EvidenceFlowNode, type GroupFlowNode, type MapEntry, type MapNode, type TestsFlowNode,
+} from '@/lib/evidence-map'
 import type { TooltipFlowEdge } from '@/lib/nested-layout'
 import { TONE_CLASSES } from '@/lib/tones'
 import { cn } from '@/lib/utils'
@@ -53,9 +55,54 @@ function FileGroup({ data }: NodeProps<GroupFlowNode>) {
   )
 }
 
+// Folder boxes are React Flow nodes, so the toggle reaches them through context, not props.
+const ToggleFolder = createContext<(path: string) => void>(() => {})
+
+function FolderToggle({ path, label, open }: { path: string; label: string; open: boolean }) {
+  const toggle = useContext(ToggleFolder)
+  const Chevron = open ? ChevronDown : ChevronRight
+  return (
+    <Button
+      variant="ghost" size="icon-xs" className="nodrag" aria-expanded={open}
+      aria-label={`${open ? 'Collapse' : 'Expand'} folder ${label}`}
+      onClick={(event) => { event.stopPropagation(); toggle(path) }}
+    >
+      <Chevron aria-hidden="true" />
+    </Button>
+  )
+}
+
+function FolderGroup({ data }: NodeProps<GroupFlowNode>) {
+  return (
+    <div className="size-full rounded-lg bg-muted/60" aria-label={`Folder ${data.path}`}>
+      <span className="flex items-center gap-1 px-2 pt-1.5 text-xs font-medium text-muted-foreground">
+        <FolderToggle path={data.path} label={data.label} open />
+        <Folder aria-hidden="true" className="size-3.5" />
+        {data.label}
+      </span>
+    </div>
+  )
+}
+
+function CollapsedCard({ data }: NodeProps<CollapsedFlowNode>) {
+  return (
+    <Card className={cn('h-24 w-60 cursor-pointer gap-1 border-2 p-2 shadow-sm', TONE_CLASSES[STATUS_META[data.status].tone])}>
+      <PortHandles ports={data.ports} />
+      <span className="flex items-center gap-1 text-sm font-semibold text-foreground">
+        <FolderToggle path={data.path} label={data.label} open={false} />
+        <FolderClosed aria-hidden="true" className="size-4 shrink-0" />
+        <span className="truncate">{data.label}</span>
+      </span>
+      <span className="truncate text-xs text-muted-foreground">{data.count} function{data.count === 1 ? '' : 's'} inside</span>
+      <StatusBadge status={data.status} className="w-fit" />
+    </Card>
+  )
+}
+
 const nodeTypes = {
   evidence: EvidenceNodeCard,
   tests: TestsNodeCard,
+  collapsed: CollapsedCard,
   folder: FolderGroup,
   file: FileGroup,
 }
@@ -126,10 +173,11 @@ function DetailsSheet({ evidence, entry, onClose }: { evidence: Evidence; entry:
 
 function Canvas({ evidence }: { evidence: Evidence }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [selected, setSelected] = useState<MapEntry>()
   const { nodes, edges, onNodesChange, onEdgesChange, error, reset } = useAsyncLayout<MapNode, TooltipFlowEdge>(
-    () => buildEvidenceMap(evidence, expanded),
-    [evidence, expanded],
+    () => buildEvidenceMap(evidence, expanded, collapsed),
+    [evidence, expanded, collapsed],
   )
   const colorMode = useFlowColorMode()
   const leafCount = useMemo(() => nodes.filter((n) => n.type === 'evidence' || n.type === 'tests').length, [nodes])
@@ -144,15 +192,15 @@ function Canvas({ evidence }: { evidence: Evidence }) {
     )
   }
 
-  const toggleTests = (targetKey: string) =>
-    setExpanded((current) => {
-      const next = new Set(current)
-      if (!next.delete(targetKey)) next.add(targetKey)
-      return next
-    })
+  const toggleIn = (key: string) => (current: ReadonlySet<string>) => {
+    const next = new Set(current)
+    if (!next.delete(key)) next.add(key)
+    return next
+  }
+  const toggleFolder = (path: string) => setCollapsed(toggleIn(path))
 
   return (
-    <>
+    <ToggleFolder.Provider value={toggleFolder}>
       <ReactFlow
         colorMode={colorMode}
         nodes={nodes}
@@ -162,7 +210,8 @@ function Canvas({ evidence }: { evidence: Evidence }) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={(_, node) => {
-          if (node.type === 'tests') toggleTests(node.data.targetKey)
+          if (node.type === 'tests') setExpanded(toggleIn(node.data.targetKey))
+          else if (node.type === 'collapsed') toggleFolder(node.data.path)
           else if (node.type === 'evidence') setSelected(node.data.entry)
         }}
         nodesConnectable={false}
@@ -173,6 +222,11 @@ function Canvas({ evidence }: { evidence: Evidence }) {
         <Controls showInteractive={false} />
         {leafCount >= MINIMAP_FROM_NODES ? <MiniMap className="hidden sm:block" pannable zoomable ariaLabel="Map overview" /> : null}
         <Panel position="top-right" className="flex gap-2">
+          {collapsed.size ? (
+            <Button variant="outline" size="sm" onClick={() => setCollapsed(new Set())}>
+              <Folder aria-hidden="true" />Expand all
+            </Button>
+          ) : null}
           {expanded.size ? (
             <Button variant="outline" size="sm" onClick={() => setExpanded(new Set())}>
               <FlaskConical aria-hidden="true" />Group test callers
@@ -185,7 +239,7 @@ function Canvas({ evidence }: { evidence: Evidence }) {
         </Panel>
       </ReactFlow>
       <DetailsSheet evidence={evidence} entry={selected} onClose={() => setSelected(undefined)} />
-    </>
+    </ToggleFolder.Provider>
   )
 }
 
