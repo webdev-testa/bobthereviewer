@@ -236,3 +236,20 @@ def test_head_decisions_leave_out_files_already_on_the_base(tmp_path):
 
     decisions = _load_head_decisions(SimpleNamespace(head_path=head, base_path=base))
     assert [d["symbol"] for d in decisions] == ["invoice.calculate_invoice"]
+
+
+def test_approved_decisions_are_found_when_only_origin_main_exists(tmp_path):
+    """Like a CI checkout: the default branch exists only as origin/main."""
+    from bobthereviewer.decisions import load_branch_decisions
+    from tests.test_setup_cli import commit_files, init_repo
+
+    upstream = tmp_path / "upstream"
+    init_repo(upstream)
+    record = {"symbol": "pricing.calculate_price", "case_id": "price-100", "verdict": "intended"}
+    commit_files(upstream, {".bobreviewer/decisions/d.json": json.dumps(record)}, "decision")
+    clone = tmp_path / "clone"
+    subprocess.run(["git", "clone", "-q", str(upstream), str(clone)], check=True)
+    subprocess.run(["git", "checkout", "-q", "--detach"], cwd=clone, check=True)
+    subprocess.run(["git", "branch", "-q", "-D", "main"], cwd=clone, check=True)
+
+    assert [r["symbol"] for r in load_branch_decisions("main", clone)] == ["pricing.calculate_price"]
