@@ -140,7 +140,10 @@ tool fails, the comment says so; it never shows placeholder data.
 
 ## Limits
 
-- **Python only.** Callers, tests and probes are analyzed for Python code.
+- **Behavior evidence is Python only.** Python gets callers, tests and probes on both revisions.
+  TypeScript, JavaScript, Java, C# and Go get callers across files; Rust, C and C++ get same-file
+  callers only (beta). Nothing is run for them, and every report says which languages were analyzed
+  and how ("Analyzed as").
 - Callers are traced **two calls away**; anything further is not shown.
 - Dynamic calls (`getattr`, dispatch tables) can't be followed; they are listed as possible links,
   never assumed safe.

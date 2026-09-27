@@ -115,9 +115,17 @@ export interface DecisionRecord {
   timestamp: string
 }
 
+export interface LanguageSupport {
+  language: string
+  adapter?: string
+  /** full: Python (callers, tests, probes); static: callers only; static_same_file: same-file callers, beta. */
+  tier: 'full' | 'static' | 'static_same_file'
+}
+
 export interface AnalysisLimits {
   max_hops: number
   notes: string[]
+  languages?: LanguageSupport[]
 }
 
 export interface Evidence {
