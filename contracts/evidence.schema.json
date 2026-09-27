@@ -309,14 +309,14 @@
         "kwargs": { "type": "object" },
         "base_output": {
           "description": "Return value (any JSON value) or exception record from the base revision; null when execution did not complete",
-          "oneOf": [
+          "anyOf": [
             { "type": ["string", "number", "boolean", "null", "array", "object"] },
             { "$ref": "#/definitions/exception_record" }
           ]
         },
         "head_output": {
           "description": "Return value (any JSON value) or exception record from the head revision; null when execution did not complete",
-          "oneOf": [
+          "anyOf": [
             { "type": ["string", "number", "boolean", "null", "array", "object"] },
             { "$ref": "#/definitions/exception_record" }
           ]
