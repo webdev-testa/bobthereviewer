@@ -116,6 +116,14 @@ class TestValidateAndSave:
         assert "bbbbbbb" in path.name
         assert path.suffix == ".json"
 
+    def test_two_cases_of_one_function_get_separate_files(self, tmp_path):
+        """Deciding a second case must not overwrite the first case's decision."""
+        first, _ = validate_and_save(make_decision(verdict="unintended", case_id="price-100"), tmp_path)
+        second, _ = validate_and_save(make_decision(verdict="unintended", case_id="price-0"), tmp_path)
+        assert first != second
+        assert first.exists() and second.exists()
+        assert "price-100" in first.name and "price-0" in second.name
+
     def test_output_dir_created_if_absent(self, tmp_path):
         """output_dir is created when it does not already exist."""
         deep = tmp_path / "new" / "nested" / "dir"
