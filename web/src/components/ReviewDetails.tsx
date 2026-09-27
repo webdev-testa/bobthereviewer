@@ -29,13 +29,8 @@ function Row({ value, title, summary, children }: { value: string; title: string
   )
 }
 
-interface Props {
-  evidence: Evidence
-  onSaveDecision?: (target: string, caseId: string, probeFile: string) => void
-}
-
 /** Everything behind the verdict, one collapsible row each; only a test regression opens by default. */
-export function ReviewDetails({ evidence, onSaveDecision }: Props) {
+export function ReviewDetails({ evidence }: { evidence: Evidence }) {
   const probes = evidence.probe_results
   const caseCount = probes.reduce((n, p) => n + p.cases.length, 0)
   const tests = testSummary(evidence.test_results)
@@ -47,7 +42,7 @@ export function ReviewDetails({ evidence, onSaveDecision }: Props) {
         <Accordion type="multiple" defaultValue={tests.attention ? ['tests'] : []}>
           <Row value="probes" title="Probe results" summary={probes.length ? `${probes.length} probe${probes.length === 1 ? '' : 's'} · ${caseCount} cases` : 'No probes ran'}>
             {probes.length
-              ? <ProbeResults results={probes} onSaveDecision={onSaveDecision} />
+              ? <ProbeResults results={probes} decisions={evidence.decisions} />
               : <p className="text-sm text-muted-foreground">Nothing was executed on both revisions. The map shows which callers need a probe.</p>}
           </Row>
           <Row value="tests" title="Tests" summary={evidence.triage.skipped ? 'Skipped' : tests.text}>

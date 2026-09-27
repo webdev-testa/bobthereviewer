@@ -1,7 +1,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { StatusBadge, STATUS_PRIORITY, type EvidenceStatus } from '@/components/StatusBadge'
 import { caseStatus, ProbeResultTable } from '@/components/ProbeResultTable'
-import type { ProbeResult } from '@/types/evidence'
+import type { DecisionRecord, ProbeResult } from '@/types/evidence'
 
 function counts(result: ProbeResult) {
   const tally = new Map<EvidenceStatus, number>()
@@ -13,11 +13,11 @@ const needsAttention = (result: ProbeResult) => result.cases.some((c) => caseSta
 
 interface Props {
   results: ProbeResult[]
-  onSaveDecision?: (target: string, caseId: string, probeFile: string) => void
+  decisions: DecisionRecord[]
 }
 
 /** One row per probe; rows with a difference or an inconclusive case start open. */
-export function ProbeResults({ results, onSaveDecision }: Props) {
+export function ProbeResults({ results, decisions }: Props) {
   return (
     <Accordion type="multiple" defaultValue={results.filter(needsAttention).map((r) => r.probe_file)}>
       {results.map((result) => (
@@ -32,10 +32,7 @@ export function ProbeResults({ results, onSaveDecision }: Props) {
             </span>
           </AccordionTrigger>
           <AccordionContent>
-            <ProbeResultTable
-              result={result}
-              onSaveDecision={onSaveDecision ? (caseId) => onSaveDecision(result.target, caseId, result.probe_file) : undefined}
-            />
+            <ProbeResultTable result={result} decisions={decisions} />
           </AccordionContent>
         </AccordionItem>
       ))}

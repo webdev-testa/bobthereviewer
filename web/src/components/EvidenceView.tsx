@@ -9,11 +9,6 @@ import { DecisionBadge } from '@/components/DecisionBadge'
 import { EvidenceMap } from '@/components/EvidenceMap'
 import type { Evidence } from '@/types/evidence'
 
-interface Props {
-  evidence: Evidence
-  onSaveDecision?: (symbol: string, caseId: string, probeFile: string) => void
-}
-
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Card>
@@ -23,7 +18,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-export function EvidenceView({ evidence, onSaveDecision }: Props) {
+export function EvidenceView({ evidence }: { evidence: Evidence }) {
   return (
     <div className="space-y-8">
       {evidence.fixture && (
@@ -36,15 +31,15 @@ export function EvidenceView({ evidence, onSaveDecision }: Props) {
         </Alert>
       )}
       <SummaryCard evidence={evidence} />
-      <NeedsAttention evidence={evidence} onSaveDecision={onSaveDecision} />
+      <NeedsAttention evidence={evidence} />
       <EvidenceMap evidence={evidence} />
-      <ReviewDetails evidence={evidence} onSaveDecision={onSaveDecision} />
+      <ReviewDetails evidence={evidence} />
 
-      {evidence.decisions.length > 0 && (
-        <Section title="Prior decisions">
-          {evidence.decisions.map((d, i) => <DecisionBadge key={i} decision={d} isHistory />)}
+      {evidence.prior_decisions?.length ? (
+        <Section title="Earlier approved decisions">
+          {evidence.prior_decisions.map((d) => <DecisionBadge key={`${d.run_id}:${d.symbol}:${d.case_id}`} decision={d} isHistory />)}
         </Section>
-      )}
+      ) : null}
     </div>
   )
 }

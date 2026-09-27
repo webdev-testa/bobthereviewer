@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { CircleCheck, CircleHelp, Info, TriangleAlert } from 'lucide-react'
+import { CircleCheck, CircleDashed, CircleHelp, Info, Save, TriangleAlert } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { TONE_CLASSES, type Tone } from '@/lib/tones'
 import type { DecisionRecord } from '@/types/evidence'
@@ -29,6 +29,39 @@ export function DecisionBadge({ decision, isHistory = false }: Props) {
           This is prior context, not approval of the current change.
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * A differing case's decision state. Saved-but-uncommitted wins: the file exists, but this run's
+ * evidence can't know about it, and the web never claims a decision is approved.
+ */
+export function CaseDecision({ decision, saved }: { decision?: DecisionRecord; saved: boolean }) {
+  if (saved) {
+    return (
+      <p className="flex items-center gap-1 text-xs font-medium text-info">
+        <Save aria-hidden="true" className="size-3" />Saved — commit it to include it in the next review
+      </p>
+    )
+  }
+  if (!decision) {
+    return (
+      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+        <CircleDashed aria-hidden="true" className="size-3" />No decision yet
+      </p>
+    )
+  }
+  const { label, icon: Icon, tone } = VERDICT_CONFIG[decision.verdict]
+  return (
+    <div className="space-y-0.5 text-xs">
+      <p className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className={TONE_CLASSES[tone]}><Icon aria-hidden="true" />{label}</Badge>
+        <span className="text-muted-foreground">
+          {decision.status === 'approved' ? 'approved' : 'proposed — approved when merged'}
+        </span>
+      </p>
+      {decision.rationale ? <p className="text-muted-foreground">{decision.rationale}</p> : null}
     </div>
   )
 }

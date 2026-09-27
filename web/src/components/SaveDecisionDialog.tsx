@@ -12,9 +12,11 @@ interface Props {
   caseId: string
   probeFile: string
   onClose: () => void
+  /** Called once the decision file is written. */
+  onSaved: () => void
 }
 
-export function SaveDecisionDialog({ open, runId, symbol, caseId, probeFile, onClose }: Props) {
+export function SaveDecisionDialog({ open, runId, symbol, caseId, probeFile, onClose, onSaved }: Props) {
   const [verdict, setVerdict] = useState<DecideRequest['verdict'] | ''>('')
   const [rationale, setRationale] = useState('')
   const [result, setResult] = useState<{ file_path: string; git_command: string } | null>(null)
@@ -31,6 +33,7 @@ export function SaveDecisionDialog({ open, runId, symbol, caseId, probeFile, onC
     try {
       const res = await postDecide({ run_id: runId, symbol, case_id: caseId, probe_file: probeFile, verdict, rationale })
       setResult(res)
+      onSaved()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
