@@ -98,10 +98,25 @@ class SetupResult:
     skipped: list[str] = field(default_factory=list)    # things we did not do
 
 
+def _load_template(name: str) -> str:
+    """Load a bundled template from bobthereviewer.templates."""
+    try:
+        import importlib.resources
+        ref = importlib.resources.files("bobthereviewer.templates") / name
+        return ref.read_text(encoding="utf-8")
+    except Exception:
+        fallback = Path(__file__).resolve().parent / "templates" / name
+        if fallback.exists():
+            return fallback.read_text(encoding="utf-8")
+        raise FileNotFoundError(f"Template {name} not found")
+
+
 def init(
     repo_dir: Path,
     update_gitignore: bool = True,
     config: dict[str, str] | None = None,
+    install_bob_mode: bool = False,
+    install_github_action: bool = False,
 ) -> SetupResult:
     """Initialise .bobreviewer/ for a repository.
 
@@ -154,6 +169,42 @@ def init(
                 encoding="utf-8",
             )
             result.created.append(".gitignore")
+
+    # Install Bob custom mode
+    if install_bob_mode:
+        bob_dir = repo_root / ".bob"
+        bob_modes_path = bob_dir / "custom_modes.yaml"
+        if not bob_modes_path.exists():
+            bob_dir.mkdir(parents=True, exist_ok=True)
+            mode_content = _load_template("custom_modes.yaml")
+            bob_modes_path.write_text(mode_content, encoding="utf-8")
+            result.created.append(".bob/custom_modes.yaml")
+        else:
+            existing = bob_modes_path.read_text(encoding="utf-8")
+            if "slug: behavior-review" in existing:
+                result.preserved.append(".bob/custom_modes.yaml")
+            else:
+                snippet_path = br_dir / "bob-mode.yaml"
+                mode_content = _load_template("custom_modes.yaml")
+                snippet_path.write_text(mode_content, encoding="utf-8")
+                result.created.append(".bobreviewer/bob-mode.yaml (paste into .bob/custom_modes.yaml)")
+                result.preserved.append(".bob/custom_modes.yaml")
+    else:
+        result.skipped.append(".bob/custom_modes.yaml")
+
+    # Install GitHub Action workflow
+    if install_github_action:
+        workflows_dir = repo_root / ".github" / "workflows"
+        workflow_path = workflows_dir / "bobreviewer.yml"
+        if not workflow_path.exists():
+            workflows_dir.mkdir(parents=True, exist_ok=True)
+            workflow_content = _load_template("bobreviewer.yml")
+            workflow_path.write_text(workflow_content, encoding="utf-8")
+            result.created.append(".github/workflows/bobreviewer.yml")
+        else:
+            result.preserved.append(".github/workflows/bobreviewer.yml")
+    else:
+        result.skipped.append(".github/workflows/bobreviewer.yml")
 
     return result
 
