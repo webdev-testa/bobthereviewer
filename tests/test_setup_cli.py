@@ -306,7 +306,7 @@ def test_cli_run_uses_config_defaults(tmp_path):
     init(repo)
     # Commit the .bobreviewer/ files so the tree is clean
     _git(["add", "-A"], cwd=repo)
-    _git(["commit", "-m", "add bobreviewer config"], cwd=repo)
+    _git(["commit", "-m", "add bobthereviewer config"], cwd=repo)
 
     # No uncommitted files — clean tree
     code = main(["run", "--repo-dir", str(repo)])
@@ -409,9 +409,21 @@ def test_cli_decide_success_writes_decision_and_prints_git_command(tmp_path, cap
 
 
 
-def test_cli_ui_pending_returns_1(tmp_path, capsys):
-    """ui command returns 1 and prints a clear pending message when Lane 2 not available."""
+def test_cli_ui_hands_off_to_lane2_server(tmp_path, capsys, monkeypatch):
+    """`ui` delegates to Lane 2's server.start and never blocks the test run.
+
+    Lane 2 now ships the local server, so this asserts the handoff rather than a pending
+    message. `start` is stubbed: the real one binds a socket and serves forever.
+    """
+    import bobthereviewer.server as server_module
+
+    called: dict[str, object] = {}
+
+    def fake_start(args):
+        called["args"] = args
+        return 0
+
+    monkeypatch.setattr(server_module, "start", fake_start, raising=False)
     code = main(["ui"])
-    assert code == 1
-    err = capsys.readouterr().err
-    assert "pending" in err.lower() or "lane 2" in err.lower() or "server" in err.lower()
+    assert code == 0
+    assert "args" in called, "cli did not call server.start"
