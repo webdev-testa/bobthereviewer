@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { TriageBadge } from '@/components/TriageBadge'
 import { ChangedFunctionCard } from '@/components/ChangedFunctionCard'
@@ -8,12 +9,19 @@ import type { Evidence } from '@/types/evidence'
 
 interface Props {
   evidence: Evidence
-  onSaveDecision?: (symbol: string, caseId: string) => void
+  onSaveDecision?: (symbol: string, caseId: string, probeFile: string) => void
 }
 
 export function EvidenceView({ evidence, onSaveDecision }: Props) {
   return (
     <div className="space-y-6">
+      {/* Fixture banner */}
+      {evidence.fixture && (
+        <div className="flex items-center gap-2 rounded-md border border-warning/40 bg-warning-muted px-3 py-2 text-xs text-warning">
+          <AlertTriangle size={13} className="shrink-0" />
+          Fixture data — not real evidence. Replace with output from <code className="font-mono">bobreviewer run</code>.
+        </div>
+      )}
       {/* Header */}
       <div className="space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
@@ -38,10 +46,12 @@ export function EvidenceView({ evidence, onSaveDecision }: Props) {
           : evidence.changed_functions.map((fn) => (
             <div key={fn.symbol} className="space-y-2">
               <ChangedFunctionCard
-                fn={fn}
-                probeResults={evidence.probe_results}
-                onSaveDecision={onSaveDecision ? (caseId) => onSaveDecision(fn.symbol, caseId) : undefined}
-              />
+                  fn={fn}
+                  probeResults={evidence.probe_results}
+                  onSaveDecision={onSaveDecision
+                    ? (caseId, probeFile) => onSaveDecision(fn.symbol, caseId, probeFile)
+                    : undefined}
+                />
               <CallerMap fn={fn} />
             </div>
           ))

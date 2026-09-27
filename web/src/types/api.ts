@@ -26,6 +26,7 @@ export interface DecideRequest {
   run_id: string
   symbol: string
   case_id: string
+  probe_file: string
   verdict: 'intended' | 'unintended' | 'unresolved'
   rationale: string
 }

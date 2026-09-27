@@ -10,7 +10,7 @@ const evidence: Evidence =
   typeof __JUDGE_EVIDENCE__ !== 'undefined' ? __JUDGE_EVIDENCE__ : evidenceFixture
 
 export function JudgePage() {
-  const [previewVerdict, setPreviewVerdict] = useState<string | null>(null)
+  const [previewTarget, setPreviewTarget] = useState<string | null>(null)
 
   return (
     <div className="min-h-screen bg-surface">
@@ -22,11 +22,11 @@ export function JudgePage() {
 
         <EvidenceView
           evidence={evidence}
-          onSaveDecision={(symbol, caseId) => setPreviewVerdict(`${symbol}:${caseId}`)}
+          onSaveDecision={(symbol, caseId) => setPreviewTarget(`${symbol}:${caseId}`)}
         />
 
         {/* Session-only decision preview — no API calls, no file writes */}
-        {previewVerdict && (
+        {previewTarget && (
           <div className="rounded-md border border-warning/40 bg-warning-muted px-4 py-3 text-xs space-y-2">
             <div className="font-medium text-warning">Demo preview — not saved</div>
             <p className="text-muted">
@@ -34,7 +34,7 @@ export function JudgePage() {
               On this static page it is for demonstration only.
             </p>
             <button
-              onClick={() => setPreviewVerdict(null)}
+              onClick={() => setPreviewTarget(null)}
               className="underline text-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-info rounded"
             >
               Dismiss

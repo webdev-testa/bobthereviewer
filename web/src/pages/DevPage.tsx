@@ -18,7 +18,7 @@ export function DevPage() {
   const [afterRef, setAfterRef] = useState('')
   const [running, setRunning] = useState(false)
   const [progressEvents, setProgressEvents] = useState<ProgressEvent[]>([])
-  const [dialog, setDialog] = useState<{ symbol: string; caseId: string } | null>(null)
+  const [dialog, setDialog] = useState<{ symbol: string; caseId: string; probeFile: string } | null>(null)
 
   async function handleSelectRun(id: string) {
     setSelectedRun(id)
@@ -91,7 +91,7 @@ export function DevPage() {
         {evidence && (
           <EvidenceView
             evidence={evidence}
-            onSaveDecision={(symbol, caseId) => setDialog({ symbol, caseId })}
+            onSaveDecision={(symbol, caseId, probeFile) => setDialog({ symbol, caseId, probeFile })}
           />
         )}
         {!evidence && !loadError && (
@@ -105,6 +105,7 @@ export function DevPage() {
           runId={selectedRun}
           symbol={dialog.symbol}
           caseId={dialog.caseId}
+          probeFile={dialog.probeFile}
           onClose={() => setDialog(null)}
         />
       )}

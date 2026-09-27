@@ -10,7 +10,7 @@ import type { ChangedFunction, ProbeResult } from '@/types/evidence'
 interface Props {
   fn: ChangedFunction
   probeResults: ProbeResult[]
-  onSaveDecision?: (caseId: string) => void
+  onSaveDecision?: (caseId: string, probeFile: string) => void
 }
 
 export function ChangedFunctionCard({ fn, probeResults, onSaveDecision }: Props) {
@@ -45,7 +45,11 @@ export function ChangedFunctionCard({ fn, probeResults, onSaveDecision }: Props)
             </div>
           )}
           {relatedProbes.map((p, i) => (
-            <ProbeResultTable key={i} result={p} onSaveDecision={onSaveDecision} />
+            <ProbeResultTable
+              key={i}
+              result={p}
+              onSaveDecision={onSaveDecision ? (caseId) => onSaveDecision(caseId, p.probe_file) : undefined}
+            />
           ))}
         </CardContent>
       )}

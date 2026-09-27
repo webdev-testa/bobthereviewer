@@ -1,6 +1,11 @@
 /**
  * TypeScript types mirroring contracts/evidence.schema.json
  * Source of truth: contracts/evidence.schema.json (Lane 1)
+ *
+ * Key differences from spec draft:
+ * - probe cases have separate execution_status + comparison_status (not a single status)
+ * - callers have an optional via[] for two-hop paths
+ * - top-level fixture: boolean marks illustrative data
  */
 
 export type TriageCategory =
@@ -16,13 +21,20 @@ export interface TriageInfo {
   skip_reason: string | null
 }
 
+export interface ViaEdge {
+  symbol: string
+  file_path: string
+  line: number
+}
+
 export interface CallerInfo {
   symbol: string
   file_path: string
   line: number
   in_diff: boolean
-  resolution: 'resolved' | 'unknown'
+  resolution: 'resolved'
   needs_probe: boolean
+  via: ViaEdge[] | null
 }
 
 export interface UnknownRef {
@@ -50,7 +62,8 @@ export interface TestResults {
   head: Record<string, TestResult>
 }
 
-export type CaseStatus = 'match' | 'differ' | 'inconclusive'
+export type ExecutionStatus = 'success' | 'exception' | 'inconclusive'
+export type ComparisonStatus = 'match' | 'differ' | 'inconclusive' | null
 
 export type OutputValue =
   | string
@@ -67,10 +80,12 @@ export interface ProbeCase {
   kwargs: Record<string, unknown>
   base_output: OutputValue
   head_output: OutputValue
-  status: CaseStatus
+  execution_status: ExecutionStatus
+  comparison_status: ComparisonStatus
   inconclusive_reason: string | null
-  base_executed_at: string
-  head_executed_at: string
+  inconclusive_detail: string | null
+  base_executed_at: string | null
+  head_executed_at: string | null
 }
 
 export interface ProbeResult {
@@ -87,6 +102,7 @@ export interface DecisionRecord {
   repository: string
   file_path: string
   symbol: string
+  case_id: string
   base_commit: string
   head_commit: string
   probe_file: string
@@ -116,6 +132,8 @@ export interface Evidence {
   prior_run_id: string | null
   ci_run_url: string | null
   frozen_suite_hash: string | null
+  /** When true this is illustrative fixture data — show a clear label in the UI */
+  fixture?: boolean
   triage: TriageInfo
   analysis_limits: AnalysisLimits
   changed_functions: ChangedFunction[]
