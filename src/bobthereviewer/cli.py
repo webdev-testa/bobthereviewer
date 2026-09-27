@@ -105,12 +105,16 @@ def cmd_init(args: argparse.Namespace) -> int:
             config = detect_config(repo_root)
             print("Detected setup:")
             for key in ("base_branch", "test_dir", "python_env"):
-                print(f"  {key}: {config[key]}")
+                print(f"  {key}: {config.get(key) or '(none found)'}")
             if sys.stdin.isatty() and not args.yes:
                 for key, label in (("base_branch", "Base branch"),
                                    ("test_dir", "Test folder"),
                                    ("python_env", "Python command")):
-                    config[key] = input(f"{label} [{config[key]}]: ").strip() or config[key]
+                    answer = input(f"{label} [{config.get(key, '')}]: ").strip() or config.get(key, "")
+                    if answer:
+                        config[key] = answer
+                    else:
+                        config.pop(key, None)
                 ans_bob = input("Install Bob mode [Y/n]: ").strip().lower()
                 install_bob = ans_bob in ("", "y", "yes")
                 ans_act = input("Install GitHub Action [Y/n]: ").strip().lower()
