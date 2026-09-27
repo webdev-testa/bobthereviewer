@@ -2,17 +2,33 @@
   {
     "id": "pr-1-before-fix",
     "pr": 1,
-    "title": "PR #1 – rounding (before fix)",
+    "title": "Change rounding in apply_discount",
     "label": "PR #1 – rounding (before fix)",
-    "pr_url": "https://github.com/webdev-testa/bobthereviewer-demo/pull/1",
-    "run_url": "https://github.com/webdev-testa/bobthereviewer-demo/actions/runs/1"
+    "pr_url": "https://github.com/kafiirgie/bobthereviewer-demo-prs/pull/1",
+    "run_url": "https://github.com/kafiirgie/bobthereviewer-demo-prs/actions/runs/36321080698"
   },
   {
     "id": "pr-1",
     "pr": 1,
-    "title": "PR #1 – fix rounding calculation",
-    "label": "PR #1",
-    "pr_url": "https://github.com/webdev-testa/bobthereviewer-demo/pull/1",
-    "run_url": "https://github.com/webdev-testa/bobthereviewer-demo/actions/runs/2"
+    "title": "Change rounding in apply_discount",
+    "label": "PR #1 – rounding (after fix)",
+    "pr_url": "https://github.com/kafiirgie/bobthereviewer-demo-prs/pull/1",
+    "run_url": "https://github.com/kafiirgie/bobthereviewer-demo-prs/actions/runs/36321197116"
+  },
+  {
+    "id": "pr-2",
+    "pr": 2,
+    "title": "Raise the tax rate to 11%",
+    "label": "PR #2 – tax rate 11% (intended)",
+    "pr_url": "https://github.com/kafiirgie/bobthereviewer-demo-prs/pull/2",
+    "run_url": "https://github.com/kafiirgie/bobthereviewer-demo-prs/actions/runs/36321297555"
+  },
+  {
+    "id": "pr-3",
+    "pr": 3,
+    "title": "Raise the tax rate to 12%",
+    "label": "PR #3 – tax rate 12% (prior decision as context)",
+    "pr_url": "https://github.com/kafiirgie/bobthereviewer-demo-prs/pull/3",
+    "run_url": "https://github.com/kafiirgie/bobthereviewer-demo-prs/actions/runs/36321923494"
   }
 ]
