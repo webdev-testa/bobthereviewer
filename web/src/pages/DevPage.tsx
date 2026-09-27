@@ -8,6 +8,7 @@ import { SaveDecisionDialog } from '@/components/SaveDecisionDialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { getRun, listRuns } from '@/lib/local-api'
+import { requestedRunId } from '@/lib/mode'
 import { useTheme } from '@/lib/use-theme'
 import type { Evidence } from '@/types/evidence'
 import type { RunSummary } from '@/types/api'
@@ -27,6 +28,13 @@ export function DevPage() {
   }, [])
 
   useEffect(refreshRuns, [refreshRuns])
+
+  useEffect(() => {
+    const runId = requestedRunId()
+    if (runId) void handleSelectRun(runId)
+    // Only on first load: afterwards the picker drives the selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleSelectRun(id: string) {
     setSelectedRun(id)
