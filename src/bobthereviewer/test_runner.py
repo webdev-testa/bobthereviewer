@@ -7,9 +7,8 @@ Runs the frozen base test suite against both worktrees.
 with the base pytest config.  New test files added on the head branch do
 NOT run in the frozen suite.
 
-Uses pytest's built-in ``--json-report`` (pytest-json-report) for structured
-output.  Falls back to parsing the plain text output for environments without
-the plugin.
+Uses pytest's built-in ``--junitxml`` for structured output, requiring only
+pytest (no pytest-json-report plugin needed).
 
 Returns the ``test_results`` dict shape expected by ``evidence.schema.json``
 and a ``frozen_suite_hash`` hex string (SHA-256 of sorted file contents).
@@ -21,6 +20,7 @@ import hashlib
 import json
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -67,11 +67,155 @@ def _discover_test_files(worktree_path: str) -> list[tuple[str, bytes]]:
     return sorted(unique)
 
 
+def _clean_paths(text: str, paths: list[str | Path]) -> str:
+    for p in paths:
+        if not p:
+            continue
+        try:
+            resolved = Path(p).resolve()
+            text = text.replace(str(resolved), ".").replace(resolved.as_posix(), ".")
+        except Exception:
+            pass
+        text = text.replace(str(p), ".")
+    return text.strip()
+
+
+def _display_interpreter(python_exe: str, worktree_path: str = "") -> str:
+    exe_p = Path(python_exe).resolve()
+    for root_cand in [Path(worktree_path).resolve() if worktree_path else None, Path.cwd().resolve()]:
+        if root_cand:
+            try:
+                rel = exe_p.relative_to(root_cand)
+                return str(rel)
+            except (ValueError, RuntimeError):
+                pass
+    parts = exe_p.parts
+    for venv_name in (".venv", "venv"):
+        if venv_name in parts:
+            idx = parts.index(venv_name)
+            return str(Path(*parts[idx:]))
+    return exe_p.name
+
+
+def parse_junit_xml(
+    xml_content: str,
+    worktree_path: str = "",
+    test_files: list[str] | None = None,
+) -> dict[str, dict]:
+    """Parse pytest JUnit XML into {node_id: {"status": status, "message": message}}.
+
+    Statuses: "pass" | "fail" | "error".
+    Skipped tests map to "error" with message "skipped: <reason>".
+    """
+    if not xml_content.strip():
+        return {}
+
+    try:
+        root = ET.fromstring(xml_content)
+    except ET.ParseError:
+        return {}
+
+    results: dict[str, dict] = {}
+    known_files = [f.replace("\\", "/") for f in (test_files or [])]
+    clean_targets: list[str | Path] = [worktree_path] if worktree_path else []
+
+    mod_to_file: dict[str, str] = {}
+    for f in known_files:
+        p = Path(f)
+        parts = list(p.parts)
+        if parts[-1].endswith(".py"):
+            parts[-1] = parts[-1][:-3]
+        mod_name = ".".join(parts)
+        mod_to_file[mod_name] = f
+        mod_to_file[p.stem] = f
+
+    for tc in root.iter("testcase"):
+        name = tc.attrib.get("name", "")
+        classname = tc.attrib.get("classname", "")
+        file_attr = tc.attrib.get("file", "")
+
+        fail_elem = tc.find("failure")
+        err_elem = tc.find("error")
+        skip_elem = tc.find("skipped")
+
+        if fail_elem is not None:
+            status = "fail"
+            text_detail = (fail_elem.text or "").strip()
+            attr_msg = fail_elem.attrib.get("message") or ""
+            msg = f"{attr_msg}\n{text_detail}".strip() if attr_msg and text_detail else (attr_msg or text_detail or "test failed")
+        elif err_elem is not None:
+            status = "error"
+            text_detail = (err_elem.text or "").strip()
+            attr_msg = err_elem.attrib.get("message") or ""
+            msg = f"{attr_msg}\n{text_detail}".strip() if attr_msg and text_detail else (attr_msg or text_detail or "test error")
+        elif skip_elem is not None:
+            status = "error"
+            text_detail = (skip_elem.text or "").strip()
+            raw_msg = skip_elem.attrib.get("message") or text_detail or "skipped"
+            msg = f"skipped: {raw_msg}" if not str(raw_msg).startswith("skipped") else str(raw_msg)
+        else:
+            status = "pass"
+            msg = None
+
+        if msg is not None:
+            msg = _clean_paths(msg, clean_targets)
+
+        # Check for collection failure
+        is_collection_err = (
+            err_elem is not None
+            and (
+                err_elem.attrib.get("message") == "collection failure"
+                or not classname
+                or (file_attr and name == Path(file_attr).stem)
+                or name in [Path(f).stem for f in known_files]
+            )
+        )
+        if is_collection_err:
+            results["<collection>"] = {"status": "error", "message": msg}
+            continue
+
+        # File path resolution
+        if file_attr:
+            file_path = file_attr.replace("\\", "/")
+        else:
+            file_path = ""
+            for mod, fpath in mod_to_file.items():
+                if classname == mod or classname.startswith(mod + "."):
+                    file_path = fpath
+                    break
+            if not file_path:
+                parts = classname.split(".")
+                file_path = "/".join(parts) + ".py"
+
+        # Class part resolution
+        class_part = ""
+        for mod in mod_to_file:
+            if classname.startswith(mod + "."):
+                class_part = classname[len(mod) + 1:]
+                break
+        if not class_part and "." in classname and not file_attr:
+            parts = classname.split(".")
+            if len(parts) > 1 and parts[-1] and parts[-1][0].isupper():
+                class_part = parts[-1]
+
+        if class_part:
+            node_id = f"{file_path}::{class_part}::{name}"
+        elif name:
+            node_id = f"{file_path}::{name}"
+        else:
+            node_id = file_path or "unknown"
+
+        results[node_id] = {"status": status, "message": msg}
+
+    return results
+
+
 def _run_pytest(
     worktree_path: str,
     python_exe: str,
     test_files: list[str],
     timeout_seconds: int,
+    src_layout: bool = False,
 ) -> dict[str, dict]:
     """
     Run pytest on the given list of test file paths (relative to worktree_path).
@@ -81,15 +225,39 @@ def _run_pytest(
         return {}
 
     root = Path(worktree_path)
+    report_path = ""
 
     def diagnostic(text: str) -> str:
-        # Temporary worktree and report paths are not publishable evidence.
-        for path in (root.resolve(), Path(report_path)):
-            text = text.replace(str(path), ".").replace(path.as_posix(), ".")
-        return text.strip()
+        clean_targets: list[str | Path] = [root.resolve(), Path(python_exe).resolve()]
+        if report_path:
+            clean_targets.append(Path(report_path).resolve())
+        return _clean_paths(text, clean_targets)
 
-    # Write json report to a temp file
-    with tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w") as tf:
+    # Check if pytest is available in python_exe
+    try:
+        check = subprocess.run(
+            [python_exe, "-m", "pytest", "--version"],
+            capture_output=True,
+            timeout=10,
+        )
+        if check.returncode != 0:
+            rel_py = _display_interpreter(python_exe, worktree_path)
+            return {
+                "<pytest>": {
+                    "status": "error",
+                    "message": f"pytest is not installed in {rel_py}",
+                }
+            }
+    except Exception as exc:
+        rel_py = _display_interpreter(python_exe, worktree_path)
+        return {
+            "<pytest>": {
+                "status": "error",
+                "message": f"pytest is not installed in {rel_py} ({exc})",
+            }
+        }
+
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tf:
         report_path = tf.name
 
     cmd = [
@@ -97,9 +265,12 @@ def _run_pytest(
         "--tb=short",
         "--no-header",
         "-q",
-        f"--json-report",
-        f"--json-report-file={report_path}",
-    ] + test_files
+        "-o", "junit_family=legacy",
+        f"--junitxml={report_path}",
+    ]
+    if src_layout:
+        cmd.extend(["-o", "pythonpath=src"])
+    cmd.extend(test_files)
 
     try:
         completed = subprocess.run(
@@ -109,59 +280,31 @@ def _run_pytest(
             timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired:
-        Path(report_path).unlink(missing_ok=True)
-        return {f"<suite timeout>": {"status": "error", "message": "test suite timed out"}}
+        if report_path:
+            Path(report_path).unlink(missing_ok=True)
+        return {"<suite timeout>": {"status": "error", "message": "test suite timed out"}}
 
-    # Parse JSON report
+    results: dict[str, dict] = {}
     try:
-        with open(report_path, encoding="utf-8") as f:
-            report = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+        xml_content = Path(report_path).read_text(encoding="utf-8")
+        results = parse_junit_xml(xml_content, worktree_path, test_files)
+    except Exception:
         message = diagnostic((completed.stdout + completed.stderr).decode("utf-8", errors="replace"))
         return {"<parse error>": {"status": "error", "message": message or "could not parse pytest report"}}
     finally:
-        try:
-            Path(report_path).unlink(missing_ok=True)
-        except OSError:
-            pass
+        if report_path:
+            try:
+                Path(report_path).unlink(missing_ok=True)
+            except OSError:
+                pass
 
-    results: dict[str, dict] = {}
-    for test in report.get("tests", []):
-        node_id: str = test.get("nodeid", "unknown")
-        outcome: str = test.get("outcome", "error")
-
-        if outcome == "passed":
-            status = "pass"
-            message = None
-        elif outcome == "failed":
-            status = "fail"
-            # Extract the longrepr text if available
-            call = test.get("call", {})
-            message = call.get("longrepr") or test.get("longrepr")
-            if isinstance(message, dict):
-                message = message.get("reprcrash", {}).get("message") or str(message)
-        else:
-            status = "error"
-            setup = test.get("setup", {})
-            message = setup.get("longrepr") or test.get("longrepr")
-            if isinstance(message, dict):
-                message = message.get("reprcrash", {}).get("message") or str(message)
-
-        results[node_id] = {"status": status, "message": message}
-
-    collection_errors = [
-        str(collector.get("longrepr") or collector.get("nodeid") or "Collection failed")
-        for collector in report.get("collectors", [])
-        if collector.get("outcome") == "failed"
-    ]
-    if collection_errors or not results or completed.returncode not in (0, 1):
-        message = "\n".join(collection_errors)
-        if not message:
+    if not results or completed.returncode not in (0, 1):
+        if "<collection>" not in results:
             message = (completed.stdout + completed.stderr).decode("utf-8", errors="replace").strip()
-        results["<collection>"] = {
-            "status": "error",
-            "message": diagnostic(message) or "No tests collected from the frozen test files.",
-        }
+            results["<collection>"] = {
+                "status": "error",
+                "message": diagnostic(message) or "No tests collected from the frozen test files.",
+            }
 
     return results
 
@@ -173,6 +316,7 @@ def run_tests(
     triage: dict,
     emit: Callable[[str, str, str], None],
     timeout_seconds: int = _DEFAULT_TIMEOUT,
+    src_layout: bool = False,
 ) -> tuple[dict, Optional[str]]:
     """
     Run the frozen test suite against both worktrees.
@@ -201,12 +345,12 @@ def run_tests(
 
     # Run on base
     emit("test_base", "started", f"Running {len(frozen_rel_paths)} frozen test file(s) on base")
-    base_results = _run_pytest(base_worktree_path, python_exe, frozen_rel_paths, timeout_seconds)
+    base_results = _run_pytest(base_worktree_path, python_exe, frozen_rel_paths, timeout_seconds, src_layout)
     emit("test_base", "completed", f"base: {len(base_results)} test(s)")
 
     # Run same frozen file list on head
     emit("test_head", "started", f"Running {len(frozen_rel_paths)} frozen test file(s) on head")
-    head_results = _run_pytest(head_worktree_path, python_exe, frozen_rel_paths, timeout_seconds)
+    head_results = _run_pytest(head_worktree_path, python_exe, frozen_rel_paths, timeout_seconds, src_layout)
     emit("test_head", "completed", f"head: {len(head_results)} test(s)")
 
     return {"base": base_results, "head": head_results}, frozen_suite_hash

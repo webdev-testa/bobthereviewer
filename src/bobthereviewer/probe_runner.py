@@ -51,6 +51,9 @@ def _case_status(
     if base_result.is_nondeterministic or head_result.is_nondeterministic:
         return "inconclusive", "nondeterminism_detected"
 
+    if base_first.status_kind == "bootstrap_error" or head_first.status_kind == "bootstrap_error":
+        return "inconclusive", "bootstrap_error"
+
     if base_first.status_kind == "import_error" or head_first.status_kind == "import_error":
         return "inconclusive", "import_error"
 

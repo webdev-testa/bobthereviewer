@@ -91,10 +91,27 @@ def _call_executor(
     triage: TriageResult,
     run_id: str,
     callback: ProgressCallback,
+    config: dict | None = None,
+    src_layout: bool = False,
 ) -> ExecutionResult:
     """Call Lane 2's executor if available; return an empty result otherwise."""
     try:
         from bobthereviewer import executor as _executor  # type: ignore[import]
+
+        prior_report = None
+        if probe_spec.prior_report_path:
+            p = Path(probe_spec.prior_report_path)
+            if not p.is_absolute() and getattr(ctx, "repo_root", None):
+                p = ctx.repo_root / p
+            if p.exists():
+                try:
+                    import json
+                    prior_report = json.loads(p.read_text(encoding="utf-8"))
+                    if not probe_spec.prior_run_id and isinstance(prior_report, dict):
+                        probe_spec.prior_run_id = prior_report.get("run_id")
+                except Exception:
+                    pass
+
         return _executor.run(
             ctx=ctx,
             analysis_result=analysis_result,
@@ -102,6 +119,9 @@ def _call_executor(
             triage=triage,
             run_id=run_id,
             callback=callback,
+            config=config,
+            prior_report=prior_report,
+            src_layout=src_layout,
         )
     except ImportError:
         # Lane 2 not yet available — document the pending integration
@@ -244,6 +264,22 @@ def run_analysis_pipeline(
     callback("triage", "started", "Resolving refs and classifying diff")
 
     with WorktreeManager(repo_dir, base_ref, head_ref) as ctx:
+        # ---- Config & Layout ----
+        config = None
+        config_path = ctx.repo_root / ".bobreviewer" / "config.json"
+        if config_path.exists():
+            try:
+                import json
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+        src_layout = False
+        try:
+            from bobthereviewer.executor import _has_src_package
+            src_layout = _has_src_package(ctx.base_path) or _has_src_package(ctx.head_path)
+        except Exception:
+            pass
 
         # ---- Triage ----
         triage = classify(
@@ -263,7 +299,8 @@ def run_analysis_pipeline(
         # ---- Execution ----
         if execute and not triage.skipped:
             exec_result = _call_executor(
-                ctx, analysis_result, probe_spec, triage, run_id, callback
+                ctx, analysis_result, probe_spec, triage, run_id, callback,
+                config=config, src_layout=src_layout,
             )
         else:
             exec_result = ExecutionResult()
