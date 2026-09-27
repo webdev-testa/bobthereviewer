@@ -306,24 +306,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         # itself is still valid evidence.
         try:
             from bobthereviewer import repo_map as repo_map_module
-            with TemporaryDirectory(prefix="bobreviewer-map-") as tmp:
-                checkout = Path(tmp) / "tree"
-                added = subprocess.run(
-                    ["git", "worktree", "add", "--detach", "-q", str(checkout), result.evidence["head_commit"]],
-                    cwd=repo_root, capture_output=True, text=True,
-                )
-                if added.returncode == 0:
-                    try:
-                        payload = repo_map_module.build(
-                            checkout, repo_root,
-                            result.evidence.get("repository", "local"),
-                            result.evidence["head_commit"],
-                        )
-                        repo_map_module.validate_map(payload)
-                        repo_map_module.write_map(payload, run_dir / "repo_map.json")
-                    finally:
-                        subprocess.run(["git", "worktree", "remove", "--force", str(checkout)],
-                                       cwd=repo_root, capture_output=True, text=True)
+            repo_map_module.save_for_run(repo_root, result.evidence, run_dir)
         except Exception as exc:  # noqa: BLE001 - a missing map must not void the review
             print(f"  note: repository map not written ({type(exc).__name__}: {exc})", file=sys.stderr)
 

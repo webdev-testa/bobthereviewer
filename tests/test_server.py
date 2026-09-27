@@ -353,6 +353,12 @@ class TestStartRun:
         changed = {fn["symbol"]: fn for fn in evidence["changed_functions"]}
         assert "discount.apply_discount" in changed
         assert "invoice.calculate_invoice" in [c["symbol"] for c in changed["discount.apply_discount"]["callers"]]
+        deadline = time.time() + 30
+        while (map_status := _req(conn, "GET", f"/api/runs/{run_id}/repo_map", token=token))[0] != 200 and time.time() < deadline:
+            time.sleep(0.2)
+        assert map_status[0] == 200, "web run saved no repo map"
+        assert {"from": "invoice.py", "to": "discount.py"}.items() <= next(
+            e for e in map_status[1]["edges"] if e["from"] == "invoice.py").items()
 
     def test_uncommitted_files_warn_but_do_not_block(self, git_repo):
         (git_repo / "discount.py").write_text("# edited, not committed\n", encoding="utf-8")
