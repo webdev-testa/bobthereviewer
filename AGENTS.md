@@ -64,10 +64,12 @@ git fetch --prune
 
 | Lane | Person | Owns |
 |---|---|---|
-| A | Dev 1 | `app/schemas.py`, `app/snapshot.py`, `app/impact.py`, `app/cli.py`, `contracts/` (schema authority) |
-| B | Dev 2 | `app/runner.py`, `app/harness/`, `probes/`, `demo/sample_project/` |
-| C | Dev 3 | `app/report.py`, `app/html_report.py`, `web/` |
-| D | Dev 4 | `app/decisions.py`, `.bob/`, `.github/workflows/`, `submission/` coordination |
+| A | Dev 1 | `contracts/` (schema authority), `src/bobthereviewer/{contracts,analysis,snapshots,triage,pipeline,cli,setup}.py` |
+| B | Dev 2 | `src/bobthereviewer/{executor,_bootstrap,probe_selector,probe_runner,test_runner,progress,run_store,server}.py`, `demo/sample_project/` |
+| C | Dev 3 | `src/bobthereviewer/report.py`, `web/`, the built bundle in `src/bobreviewer/frontend/` |
+| D | Dev 4 | `src/bobthereviewer/{decisions,decide_cmd}.py`, `.bob/`, `.github/workflows/`, `submission/` coordination |
+
+All Python code lives in `src/bobthereviewer/`. Plans and handoffs are in `docs/`.
 
 ## Shared Contracts
 
@@ -82,7 +84,7 @@ No lane should produce or consume these structures without referencing the canon
 
 ## Fixtures
 
-`fixtures/evidence.fixture.json` — labeled `"fixture": true`.
+`tests/fixtures/evidence.fixture.json` — labeled `"fixture": true`.
 This is NOT real evidence. It exists to unblock development before the engine produces real output.
 Never use fixture data as demo evidence in a submission.
 

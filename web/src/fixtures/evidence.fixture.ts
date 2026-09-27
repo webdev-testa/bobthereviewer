@@ -1,6 +1,6 @@
 /**
  * Rich fixture matching the real contracts/evidence.schema.json shape.
- * Kept in sync with fixtures/evidence.fixture.json (Lane 1's canonical fixture).
+ * Kept in sync with tests/fixtures/evidence.fixture.json (Lane 1's canonical fixture).
  */
 import type { Evidence } from '@/types/evidence'
 

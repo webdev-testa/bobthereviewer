@@ -28,7 +28,7 @@ def main() -> None:
                         help="Path to a prior evidence.json for run linking")
     args = parser.parse_args()
 
-    fixture_path = pathlib.Path(__file__).parent.parent / "fixtures" / "evidence.fixture.json"
+    fixture_path = pathlib.Path(__file__).parent.parent / "tests" / "fixtures" / "evidence.fixture.json"
     if not fixture_path.exists():
         print(f"ERROR: fixture not found at {fixture_path}", file=sys.stderr)
         sys.exit(1)

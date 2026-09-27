@@ -262,7 +262,7 @@ def cmd_decide(args: argparse.Namespace) -> int:
     except ImportError:
         print(
             "error: 'decide' requires Lane 4's implementation (bobthereviewer.decide_cmd).\n"
-            "This integration is pending. See handoffs/A.md for the required interface.",
+            "This integration is pending. See docs/handoffs/A.md for the required interface.",
             file=sys.stderr,
         )
         return 1
@@ -276,7 +276,7 @@ def cmd_ui(args: argparse.Namespace) -> int:
     except ImportError:
         print(
             "error: 'ui' requires Lane 2's local server (bobthereviewer.server).\n"
-            "This integration is pending. See handoffs/A.md for the required interface.",
+            "This integration is pending. See docs/handoffs/A.md for the required interface.",
             file=sys.stderr,
         )
         return 1

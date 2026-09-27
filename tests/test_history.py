@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
-from app.decisions import lookup
+from bobthereviewer.decisions import lookup
 
 
 # ---------------------------------------------------------------------------

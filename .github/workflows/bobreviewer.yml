@@ -35,13 +35,13 @@ jobs:
         run: |
           mkdir -p output
           set +e
-          if python -c 'import app.cli' 2>/dev/null; then
+          if python -c 'import bobthereviewer.cli' 2>/dev/null; then
             bobreviewer run \
               --before "$BASE_SHA" \
               --after "$HEAD_SHA" \
               --output output/
           else
-            echo "app.cli is not available; using the development stub"
+            echo "bobthereviewer.cli is not available; using the development stub"
             python scripts/bobreviewer_stub.py run \
               --before "$BASE_SHA" \
               --after "$HEAD_SHA" \
